@@ -25,3 +25,7 @@ PYTHONPATH=. python ./video/train.py
 # ~20GB GPU required ;)
 PYTHONPATH=. python ./video/train.py --use-ml
 ```
+
+#### Demo
+
+[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/drive/1RE-592Tp4xjAOaxrMOI8EdmjzWEOxPOI?usp=sharing) Captum visualization

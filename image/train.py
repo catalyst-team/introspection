@@ -65,6 +65,7 @@ def main(use_ml: bool = False):
         ),
         dl.AccuracyCallback(input_key="logits", target_key="targets", topk_args=(1, 3, 5)),
         dl.OptimizerCallback(metric_key="loss" if use_ml else "loss_ce"),
+        dl.SchedulerCallback(),
     ]
     if use_ml:
         callbacks.extend(
