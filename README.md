@@ -10,20 +10,22 @@ pip install -r ./requirements.txt
 #### Image
 ```bash
 # classification
-PYTHONPATH=. python ./image/train.py
+PYTHONPATH=. python ./scripts/train_image.py
+
 # classification + metric learning
-PYTHONPATH=. python ./image/train.py --use-ml
+PYTHONPATH=. python ./scripts/train_image.py --use-ml
 ```
 
 #### Video
 ```bash
 # go through data/scripts/readme.md
 # classification
-# ~11GB GPU required ;)
-PYTHONPATH=. python ./video/train.py
+PYTHONPATH=. python ./scripts/train_video.py  # ~11GB GPU required
+PYTHONPATH=. python ./scripts/train_video.py --freeze-encoder  # ~5GB GPU required
+
 # classification + metric learning
-# ~20GB GPU required ;)
-PYTHONPATH=. python ./video/train.py --use-ml
+PYTHONPATH=. python ./scripts/train_video.py --use-ml  # ~20GB GPU required
+PYTHONPATH=. python ./scripts/train_video.py --freeze-encoder --use-ml  # ~20GB GPU required
 ```
 
 #### Demo

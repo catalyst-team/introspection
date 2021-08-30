@@ -7,7 +7,7 @@ from torch import nn, optim
 from torch.utils.data import DataLoader
 
 from introspection.datasets import TemporalDataset
-from introspection.modules import TemporalModel
+from introspection.modules import TemporalResNet
 from introspection.settings import DATA_ROOT, LOGS_ROOT
 
 
@@ -29,7 +29,7 @@ class CustomRunner(dl.Runner):
         }
 
 
-def main(use_ml: bool = False):
+def main(use_ml: bool = False, freeze_encoder: bool = False):
     # data
     train_csv = pd.read_csv(
         f"{DATA_ROOT}/UCF11_updated_mpg_clean/train.csv",
@@ -68,7 +68,13 @@ def main(use_ml: bool = False):
     loaders = {k: data.BatchPrefetchLoaderWrapper(v) for k, v in loaders.items()}
 
     # model
-    model = TemporalModel(emb_features=256, out_features=train_csv["class"].nunique())
+    model = TemporalResNet(
+        emb_features=256,
+        out_features=train_csv["class"].nunique(),
+        arch="resnet18",
+        pretrained=True,
+        freeze_encoder=freeze_encoder,
+    )
     optimizer = optim.AdamW(model.parameters(), lr=0.001, weight_decay=0.0005)
     scheduler = optim.lr_scheduler.MultiStepLR(optimizer, milestones=[10], gamma=0.3)
 
@@ -113,6 +119,9 @@ def main(use_ml: bool = False):
         )
 
     # train
+    strtime = datetime.now().strftime("%Y%m%d-%H%M%S")
+    ml_flag = int(use_ml)
+    encoder_flag = int(not freeze_encoder)
     runner.train(
         model=model,
         criterion=criterion,
@@ -121,7 +130,7 @@ def main(use_ml: bool = False):
         loaders=loaders,
         num_epochs=20,
         callbacks=callbacks,
-        logdir=f"{LOGS_ROOT}/video-{datetime.now().strftime('%Y%m%d-%H%M%S')}",
+        logdir=f"{LOGS_ROOT}/video-ml{ml_flag}-encoder{encoder_flag}-{strtime}",
         valid_loader="valid",
         valid_metric="accuracy",
         minimize_valid_metric=False,
@@ -145,5 +154,6 @@ def main(use_ml: bool = False):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     utils.boolean_flag(parser, "use-ml", default=False)
+    utils.boolean_flag(parser, "freeze-encoder", default=False)
     args = parser.parse_args()
-    main(args.use_ml)
+    main(args.use_ml, args.freeze_encoder)

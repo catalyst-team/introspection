@@ -43,12 +43,24 @@ def resnet9(in_channels: int, num_classes: int, size: int = 16):
     )
 
 
-class TemporalModel(nn.Module):
-    def __init__(self, emb_features: int, out_features: int, dropout_p: float = 0.5):
+class TemporalResNet(nn.Module):
+    def __init__(
+        self,
+        emb_features: int,
+        out_features: int,
+        dropout_p: float = 0.5,
+        arch: str = "resnet18",
+        pretrained: bool = True,
+        freeze_encoder: bool = False,
+    ):
         super().__init__()
-        resnet = torchvision.models.resnet18(pretrained=True)
+        resnet = torchvision.models.__dict__[arch](pretrained=pretrained)
         in_features = resnet.fc.in_features
         resnet.fc = nn.Flatten()
+        if freeze_encoder:
+            for module in resnet.children():
+                utils.set_requires_grad(module, requires_grad=False)
+
         self.encoder = nn.Sequential(resnet, nn.Dropout(p=dropout_p))
         self.embedder = nn.Sequential(nn.Linear(in_features, emb_features), nn.ReLU())
         # self.attention = nn.Sequential(nn.Linear(in_features, 1), nn.Sigmoid())

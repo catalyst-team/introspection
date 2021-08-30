@@ -89,6 +89,8 @@ def main(use_ml: bool = False):
         )
 
     # train
+    strtime = datetime.now().strftime("%Y%m%d-%H%M%S")
+    ml_flag = int(use_ml)
     runner.train(
         model=model,
         criterion=criterion,
@@ -97,7 +99,7 @@ def main(use_ml: bool = False):
         loaders=loaders,
         num_epochs=20,
         callbacks=callbacks,
-        logdir=f"{LOGS_ROOT}/image-{datetime.now().strftime('%Y%m%d-%H%M%S')}",
+        logdir=f"{LOGS_ROOT}/image-ml{ml_flag}-{strtime}",
         valid_loader="valid",
         valid_metric="accuracy",
         minimize_valid_metric=False,
