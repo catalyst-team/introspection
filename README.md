@@ -25,7 +25,7 @@ PYTHONPATH=. python ./scripts/train_video.py --freeze-encoder  # ~5GB GPU requir
 
 # classification + metric learning
 PYTHONPATH=. python ./scripts/train_video.py --use-ml  # ~20GB GPU required
-PYTHONPATH=. python ./scripts/train_video.py --freeze-encoder --use-ml  # ~20GB GPU required
+PYTHONPATH=. python ./scripts/train_video.py --freeze-encoder --use-ml  # ~15GB GPU required
 ```
 
 #### Demo
