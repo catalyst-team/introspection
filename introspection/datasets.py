@@ -31,7 +31,11 @@ def to_torch_img(im):
 
 class TemporalDataset(Dataset):
     def __init__(
-        self, df: pd.DataFrame, root_path: str, num_segments: int = 5, segment_len: int = 5
+        self,
+        df: pd.DataFrame,
+        root_path: str,
+        num_segments: int = None,
+        segment_len: int = None,
     ):
         super().__init__()
         self.data = df.to_dict()
@@ -46,16 +50,21 @@ class TemporalDataset(Dataset):
         video_reader = imageio.get_reader(video_file_path, "ffmpeg")
         # todo: rewrite
         images = [im for im in video_reader]
-        images = np.array_split(images, self.num_segments)
 
-        sampled_images = []
-        for images_segment in images:
-            idxs = np.random.choice(
-                len(images_segment),
-                self.segment_len,
-                replace=len(images_segment) < self.segment_len,
-            )
-            sampled_images.extend(images_segment[idxs])
+        if self.num_segments is not None:
+            images = np.array_split(images, self.num_segments)
+
+        if self.segment_len is not None:
+            sampled_images = []
+            for images_segment in images:
+                idxs = np.random.choice(
+                    len(images_segment),
+                    self.segment_len,
+                    replace=len(images_segment) < self.segment_len,
+                )
+                sampled_images.extend(images_segment[idxs])
+        else:
+            sampled_images = images
 
         features = np.vstack([to_torch_img(im)[np.newaxis] for im in sampled_images])
         return features, target
