@@ -8,13 +8,13 @@ import csv
 import os
 import sys
 
-from catalyst import dl
+# from catalyst import dl
 import imageio
 import numpy as np
-import torch
-from torch import nn
-from torch.nn import functional as F
-import torchvision
+# import torch
+# from torch import nn
+# from torch.nn import functional as F
+# import torchvision
 from tqdm import tqdm
 
 
@@ -39,13 +39,13 @@ def load_groups(input_folder):
     return groups
 
 
-def img_to_tensor(im, normalize=None):
-    tensor = torch.from_numpy(
-        np.moveaxis(im / (255.0 if im.dtype == np.uint8 else 1), -1, 0).astype(np.float32)
-    )
-    if normalize is not None:
-        return F.normalize(tensor, **normalize)
-    return tensor
+# def img_to_tensor(im, normalize=None):
+#     tensor = torch.from_numpy(
+#         np.moveaxis(im / (255.0 if im.dtype == np.uint8 else 1), -1, 0).astype(np.float32)
+#     )
+#     if normalize is not None:
+#         return F.normalize(tensor, **normalize)
+#     return tensor
 
 
 def chunks(lst, n):
@@ -55,11 +55,11 @@ def chunks(lst, n):
 
 
 def process_group(input_folder, groups, indices, ranges, file_ext):
-    engine = dl.DeviceEngine()
-    resnet = torchvision.models.resnet18(pretrained=True)
-    resnet.fc = nn.Sequential(nn.Flatten(), nn.Identity())
-    resnet.train(False)
-    resnet = engine.sync_device(resnet)
+    # engine = dl.DeviceEngine()
+    # resnet = torchvision.models.resnet18(pretrained=True)
+    # resnet.fc = nn.Sequential(nn.Flatten(), nn.Identity())
+    # resnet.train(False)
+    # resnet = engine.sync_device(resnet)
 
     videos = []
     # features = []
@@ -75,7 +75,8 @@ def process_group(input_folder, groups, indices, ranges, file_ext):
                     # make sure we have enough frames and the file isn't corrupt
                     video_reader = imageio.get_reader(video_file_path, "ffmpeg")
                     if len(video_reader) >= 16:
-                        images = [img_to_tensor(im).unsqueeze_(0) for im in video_reader]
+                        images = [im for im in video_reader]
+                        # images = [img_to_tensor(im).unsqueeze_(0) for im in video_reader]
                         if len(images) < 100 or len(images) > 300:
                             continue
                         video_file_path = video_file_path.replace(
