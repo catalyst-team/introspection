@@ -74,20 +74,25 @@ def process_group(input_folder, groups, indices, ranges, file_ext):
                 if ext == file_ext:
                     # make sure we have enough frames and the file isn't corrupt
                     video_reader = imageio.get_reader(video_file_path, "ffmpeg")
-                    if len(video_reader) >= 16:
-                        images = [im for im in video_reader]
-                        # images = [img_to_tensor(im).unsqueeze_(0) for im in video_reader]
-                        if len(images) < 100 or len(images) > 300:
-                            continue
-                        video_file_path = video_file_path.replace(
-                            os.path.abspath(input_folder) + "/", ""
-                        )
-                        videos.append([video_file_path, group[1], len(images)])
-                        # for batch in chunks(images, 32):
-                        #     batch = torch.cat(batch)
-                        #     batch = engine.sync_device(batch)
-                        #     batch = resnet(batch).cpu().detach().numpy()
-                        #     features.append(batch)
+                    if len(video_reader) < 100 or len(video_reader) > 300:
+                        continue
+                    video_file_path = video_file_path.replace(
+                        os.path.abspath(input_folder) + "/", ""
+                    )
+                    videos.append([video_file_path, group[1], len(video_reader)])
+                    # if len(video_reader) >= 16:
+                    #     images = [img_to_tensor(im).unsqueeze_(0) for im in video_reader]
+                    #     if len(images) < 100 or len(images) > 300:
+                    #         continue
+                    #     video_file_path = video_file_path.replace(
+                    #         os.path.abspath(input_folder) + "/", ""
+                    #     )
+                    #     videos.append([video_file_path, group[1], len(images)])
+                    #     for batch in chunks(images, 32):
+                    #         batch = torch.cat(batch)
+                    #         batch = engine.sync_device(batch)
+                    #         batch = resnet(batch).cpu().detach().numpy()
+                    #         features.append(batch)
     # features = np.vstack(features)
     return videos, None  # features
 
@@ -141,6 +146,7 @@ def main(input_folder, output_folder):
     groups = load_groups(input_folder)
     train_csv, _, valid_csv, _ = split_data(input_folder, groups, ".mpg")
 
+    os.makedirs(output_folder, exist_ok=True)
     write_to_csv(train_csv, os.path.join(output_folder, "train.csv"))
     # np.save(os.path.join(output_folder, "train.npy"), train_npy)
     write_to_csv(valid_csv, os.path.join(output_folder, "valid.csv"))
