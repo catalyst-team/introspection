@@ -62,7 +62,7 @@ def process_group(input_folder, groups, indices, ranges, file_ext):
     resnet = engine.sync_device(resnet)
 
     videos = []
-    features = []
+    # features = []
     for i in tqdm(ranges):
         group = groups[indices[i]]
         video_files = os.listdir(group[0])
@@ -82,13 +82,13 @@ def process_group(input_folder, groups, indices, ranges, file_ext):
                             os.path.abspath(input_folder) + "/", ""
                         )
                         videos.append([video_file_path, group[1], len(images)])
-                        for batch in chunks(images, 32):
-                            batch = torch.cat(batch)
-                            batch = engine.sync_device(batch)
-                            batch = resnet(batch).cpu().detach().numpy()
-                            features.append(batch)
-    features = np.vstack(features)
-    return videos, features
+                        # for batch in chunks(images, 32):
+                        #     batch = torch.cat(batch)
+                        #     batch = engine.sync_device(batch)
+                        #     batch = resnet(batch).cpu().detach().numpy()
+                        #     features.append(batch)
+    # features = np.vstack(features)
+    return videos, None  # features
 
 
 def split_data(input_folder, groups, file_ext):
@@ -105,14 +105,12 @@ def split_data(input_folder, groups, file_ext):
     train_count = int(0.8 * group_count)
     test_count = group_count - train_count
 
-    train_csv, train_npy = process_group(
-        input_folder, groups, indices, range(train_count), file_ext
-    )
-    valid_csv, valid_npy = process_group(
+    train_csv, _ = process_group(input_folder, groups, indices, range(train_count), file_ext)
+    valid_csv, _ = process_group(
         input_folder, groups, indices, range(train_count, train_count + test_count), file_ext
     )
 
-    return train_csv, train_npy, valid_csv, valid_npy
+    return train_csv, None, valid_csv, None
 
 
 def write_to_csv(items, file_path):
@@ -140,12 +138,12 @@ def main(input_folder, output_folder):
     :param output_folder: where to store the result.
     """
     groups = load_groups(input_folder)
-    train_csv, train_npy, valid_csv, valid_npy = split_data(input_folder, groups, ".mpg")
+    train_csv, _, valid_csv, _ = split_data(input_folder, groups, ".mpg")
 
     write_to_csv(train_csv, os.path.join(output_folder, "train.csv"))
-    np.save(os.path.join(output_folder, "train.npy"), train_npy)
+    # np.save(os.path.join(output_folder, "train.npy"), train_npy)
     write_to_csv(valid_csv, os.path.join(output_folder, "valid.csv"))
-    np.save(os.path.join(output_folder, "valid.npy"), valid_npy)
+    # np.save(os.path.join(output_folder, "valid.npy"), valid_npy)
 
 
 if __name__ == "__main__":

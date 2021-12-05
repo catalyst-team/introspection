@@ -6,3 +6,6 @@ captum==0.4.1
 path
 requests
 pandas
+imageio
+imageio-ffmpeg
+tensorboard
