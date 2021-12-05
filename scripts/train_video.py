@@ -1,10 +1,8 @@
 import argparse
 from datetime import datetime
 
-from catalyst import dl, utils
-from catalyst.contrib.data import AllTripletsSampler
-from catalyst.contrib.losses import TripletMarginLossWithSampler
-from catalyst.data import BatchBalanceClassSampler, BatchPrefetchLoaderWrapper
+from catalyst import data, dl, utils
+from catalyst.contrib import AllTripletsSampler, TripletMarginLossWithSampler
 import pandas as pd
 from torch import nn, optim
 from torch.utils.data import DataLoader
@@ -62,13 +60,13 @@ def main(use_ml: bool = False, freeze_encoder: bool = False):
 
     # loaders
     labels = train_dataset.get_labels()
-    sampler = BatchBalanceClassSampler(labels=labels, num_classes=6, num_samples=2)
+    sampler = data.BatchBalanceClassSampler(labels=labels, num_classes=6, num_samples=2)
     bs = sampler.batch_size
     loaders = {
         "train": DataLoader(train_dataset, batch_sampler=sampler, num_workers=8),
         "valid": DataLoader(valid_dataset, batch_size=bs, num_workers=8, shuffle=False),
     }
-    loaders = {k: BatchPrefetchLoaderWrapper(v) for k, v in loaders.items()}
+    loaders = {k: data.BatchPrefetchLoaderWrapper(v) for k, v in loaders.items()}
 
     # model
     model = TemporalResNet(

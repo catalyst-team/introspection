@@ -2,13 +2,11 @@ import argparse
 from datetime import datetime
 import os
 
-from catalyst import dl, utils
-from catalyst.contrib.data import AllTripletsSampler, Compose, ImageToTensor, NormalizeImage
-from catalyst.contrib.datasets import CIFAR10
-from catalyst.contrib.losses import TripletMarginLossWithSampler
-from catalyst.data import BatchBalanceClassSampler
+from catalyst import data, dl, utils
+from catalyst.contrib import AllTripletsSampler, TripletMarginLossWithSampler
 from torch import nn, optim
 from torch.utils.data import DataLoader
+from torchvision import datasets, transforms
 
 from introspection.modules import resnet9
 from introspection.settings import LOGS_ROOT
@@ -28,25 +26,45 @@ class CustomRunner(dl.Runner):
 
 def main(use_ml: bool = False):
     # data
-    transform = Compose([ImageToTensor(), NormalizeImage((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))])
+    transform_train = transforms.Compose(
+        [
+            transforms.RandomCrop(32, padding=4),
+            transforms.RandomHorizontalFlip(),
+            transforms.ToTensor(),
+            transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010)),
+        ]
+    )
 
-    train_dataset = CIFAR10(os.getcwd(), train=True, download=True, transform=transform)
-    valid_dataset = CIFAR10(os.getcwd(), train=False, download=True, transform=transform)
+    transform_valid = transforms.Compose(
+        [
+            transforms.ToTensor(),
+            transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010)),
+        ]
+    )
+
+    train_dataset = datasets.CIFAR10(
+        os.getcwd(), train=True, download=True, transform=transform_train
+    )
+    valid_dataset = datasets.CIFAR10(
+        os.getcwd(), train=False, download=True, transform=transform_valid
+    )
 
     # loaders
     labels = train_dataset.targets
-    sampler = BatchBalanceClassSampler(labels=labels, num_classes=10, num_samples=20)
+    sampler = data.BatchBalanceClassSampler(labels=labels, num_classes=10, num_samples=10)
     bs = sampler.batch_size
     loaders = {
-        "train": DataLoader(train_dataset, batch_sampler=sampler, num_workers=8),
-        "valid": DataLoader(valid_dataset, batch_size=bs, num_workers=8, shuffle=False),
+        "train": DataLoader(train_dataset, batch_sampler=sampler, num_workers=2),
+        "valid": DataLoader(valid_dataset, batch_size=bs, num_workers=2, shuffle=False),
     }
 
     # model
     model = resnet9(in_channels=3, num_classes=10)
     criterion = nn.CrossEntropyLoss()
-    optimizer = optim.Adam(model.parameters(), lr=1e-3)
-    scheduler = optim.lr_scheduler.MultiStepLR(optimizer, [5, 8], gamma=0.3)
+    optimizer = optim.SGD(model.parameters(), lr=0.1, momentum=0.9, weight_decay=5e-4)
+    scheduler = optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=200)
+    # optimizer = optim.Adam(model.parameters(), lr=1e-3)
+    # scheduler = optim.lr_scheduler.MultiStepLR(optimizer, [5, 8], gamma=0.3)
 
     criterion_ce = nn.CrossEntropyLoss()
     sampler_inbatch = AllTripletsSampler()
@@ -100,7 +118,7 @@ def main(use_ml: bool = False):
         optimizer=optimizer,
         scheduler=scheduler,
         loaders=loaders,
-        num_epochs=20,
+        num_epochs=200,
         callbacks=callbacks,
         logdir=f"{LOGS_ROOT}/image-ml{ml_flag}-{strtime}",
         valid_loader="valid",
