@@ -9,3 +9,4 @@ pandas
 imageio
 imageio-ffmpeg
 tensorboard
+opencv-python==4.5.5.62
