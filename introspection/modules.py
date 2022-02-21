@@ -1,5 +1,6 @@
-from catalyst import utils
-from catalyst.contrib.nn import ResidualBlock
+from catalyst.contrib.layers import ResidualBlock
+from catalyst.contrib.utils.torch import get_optimal_inner_init, outer_init
+from catalyst.utils import set_requires_grad
 from torch import nn
 import torchvision
 
@@ -59,15 +60,15 @@ class TemporalResNet(nn.Module):
         resnet.fc = nn.Flatten()
         if freeze_encoder:
             for module in resnet.children():
-                utils.set_requires_grad(module, requires_grad=False)
+                set_requires_grad(module, requires_grad=False)
 
         self.encoder = nn.Sequential(resnet, nn.Dropout(p=dropout_p))
         self.embedder = nn.Sequential(nn.Linear(in_features, emb_features), nn.ReLU())
         # self.attention = nn.Sequential(nn.Linear(in_features, 1), nn.Sigmoid())
         self.classifier = nn.Linear(emb_features, out_features)
 
-        self.embedder.apply(utils.get_optimal_inner_init(nn.ReLU))
-        self.classifier.apply(utils.outer_init)
+        self.embedder.apply(get_optimal_inner_init(nn.ReLU))
+        self.classifier.apply(outer_init)
 
     def forward(self, x):
         bs, ln, ch, h, w = x.shape

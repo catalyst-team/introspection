@@ -12,7 +12,9 @@ def to_torch_img(im):
     # todo: rewrite
     im = albu.smallest_max_size(im, 224, cv2.INTER_LINEAR)
     im = albu.center_crop(im, 224, 224)
-    im = np.moveaxis(im / (255.0 if im.dtype == np.uint8 else 1), -1, 0).astype(np.float32)
+    im = np.moveaxis(im / (255.0 if im.dtype == np.uint8 else 1), -1, 0).astype(
+        np.float32
+    )
     return im
 
 

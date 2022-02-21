@@ -11,6 +11,7 @@ import sys
 # from catalyst import dl
 import imageio
 import numpy as np
+
 # import torch
 # from torch import nn
 # from torch.nn import functional as F
@@ -111,9 +112,15 @@ def split_data(input_folder, groups, file_ext):
     train_count = int(0.8 * group_count)
     test_count = group_count - train_count
 
-    train_csv, _ = process_group(input_folder, groups, indices, range(train_count), file_ext)
+    train_csv, _ = process_group(
+        input_folder, groups, indices, range(train_count), file_ext
+    )
     valid_csv, _ = process_group(
-        input_folder, groups, indices, range(train_count, train_count + test_count), file_ext
+        input_folder,
+        groups,
+        indices,
+        range(train_count, train_count + test_count),
+        file_ext,
     )
 
     return train_csv, None, valid_csv, None

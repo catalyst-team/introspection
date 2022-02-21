@@ -1,8 +1,10 @@
 import argparse
 from datetime import datetime
 
-from catalyst import data, dl, utils
-from catalyst.contrib import AllTripletsSampler, TripletMarginLossWithSampler
+from catalyst import dl, utils
+from catalyst.contrib.data import AllTripletsSampler
+from catalyst.contrib.losses import TripletMarginLossWithSampler
+from catalyst.data import BatchBalanceClassSampler, BatchPrefetchLoaderWrapper
 import pandas as pd
 from torch import nn, optim
 from torch.utils.data import DataLoader
@@ -60,13 +62,13 @@ def main(use_ml: bool = False, freeze_encoder: bool = False):
 
     # loaders
     labels = train_dataset.get_labels()
-    sampler = data.BatchBalanceClassSampler(labels=labels, num_classes=6, num_samples=2)
+    sampler = BatchBalanceClassSampler(labels=labels, num_classes=6, num_samples=2)
     bs = sampler.batch_size
     loaders = {
         "train": DataLoader(train_dataset, batch_sampler=sampler, num_workers=8),
         "valid": DataLoader(valid_dataset, batch_size=bs, num_workers=8, shuffle=False),
     }
-    loaders = {k: data.BatchPrefetchLoaderWrapper(v) for k, v in loaders.items()}
+    loaders = {k: BatchPrefetchLoaderWrapper(v) for k, v in loaders.items()}
 
     # model
     model = TemporalResNet(
@@ -81,7 +83,9 @@ def main(use_ml: bool = False, freeze_encoder: bool = False):
 
     criterion_ce = nn.CrossEntropyLoss()
     sampler_inbatch = AllTripletsSampler()
-    criterion_ml = TripletMarginLossWithSampler(margin=0.5, sampler_inbatch=sampler_inbatch)
+    criterion_ml = TripletMarginLossWithSampler(
+        margin=0.5, sampler_inbatch=sampler_inbatch
+    )
     criterion = {"ce": criterion_ce, "ml": criterion_ml}
 
     # runner
@@ -95,14 +99,14 @@ def main(use_ml: bool = False, freeze_encoder: bool = False):
             metric_key="loss_ce",
             criterion_key="ce",
         ),
-        dl.AccuracyCallback(input_key="logits", target_key="targets", topk_args=(1, 3, 5)),
+        dl.AccuracyCallback(input_key="logits", target_key="targets", topk=(1, 3, 5)),
         dl.OptimizerCallback(metric_key="loss" if use_ml else "loss_ce"),
         dl.SchedulerCallback(),
     ]
     if use_ml:
         callbacks.extend(
             [
-                dl.ControlFlowCallback(
+                dl.ControlFlowCallbackWrapper(
                     base_callback=dl.CriterionCallback(
                         input_key="temporal_embeddings",
                         target_key="temporal_targets",
@@ -111,11 +115,9 @@ def main(use_ml: bool = False, freeze_encoder: bool = False):
                     ),
                     loaders=["train"],
                 ),
-                dl.ControlFlowCallback(
+                dl.ControlFlowCallbackWrapper(
                     base_callback=dl.MetricAggregationCallback(
-                        metric_key="loss",
-                        metrics=["loss_ce", "loss_ml"],
-                        mode="mean",
+                        metric_key="loss", metrics=["loss_ce", "loss_ml"], mode="mean",
                     ),
                     loaders=["train"],
                 ),
@@ -146,7 +148,9 @@ def main(use_ml: bool = False, freeze_encoder: bool = False):
     metrics = runner.evaluate_loader(
         loader=loaders["valid"],
         callbacks=[
-            dl.AccuracyCallback(input_key="logits", target_key="targets", topk_args=(1, 3, 5)),
+            dl.AccuracyCallback(
+                input_key="logits", target_key="targets", topk=(1, 3, 5)
+            ),
             dl.PrecisionRecallF1SupportCallback(
                 input_key="logits", target_key="targets", num_classes=11
             ),

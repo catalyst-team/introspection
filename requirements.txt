@@ -1,6 +1,6 @@
 torch==1.10.0
 torchvision==0.11.1
-catalyst==21.11
+catalyst==22.02
 albumentations==1.1.0
 captum==0.4.1
 path
