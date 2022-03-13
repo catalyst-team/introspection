@@ -28,6 +28,14 @@ PYTHONPATH=. python ./scripts/train_video.py --use-ml  # ~20GB GPU required
 PYTHONPATH=. python ./scripts/train_video.py --freeze-encoder --use-ml  # ~15GB GPU required
 ```
 
+#### Time Series [WIP]
+```
+# unpack https://drive.google.com/file/d/1MKtGfcVNiq0p7T_XGYGyTYFDYiUH96fS/view?usp=sharing to data/abide
+
+PYTHONPATH=. python ./scripts/train_ts.py
+PYTHONPATH=. python ./scripts/train_ts.py --use-ml
+```
+
 #### Demo
 
 - [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/catalyst-team/introspection/blob/main/notebooks/train.ipynb) [Training pipeline](./notebooks/train.ipynb)
