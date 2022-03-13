@@ -100,6 +100,7 @@ def main(use_ml: bool = False, freeze_encoder: bool = False):
             criterion_key="ce",
         ),
         dl.AccuracyCallback(input_key="logits", target_key="targets", topk=(1, 3, 5)),
+        dl.BackwardCallback(metric_key="loss" if use_ml else "loss_ce"),
         dl.OptimizerCallback(metric_key="loss" if use_ml else "loss_ce"),
         dl.SchedulerCallback(),
     ]

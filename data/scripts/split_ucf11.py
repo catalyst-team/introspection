@@ -1,6 +1,7 @@
 #
 # Copyright (c) Microsoft. All rights reserved.
-# Licensed under the MIT license. See LICENSE.md file in the project root for full license information.
+# Licensed under the MIT license.
+# See LICENSE.md file in the project root for full license information.
 #
 
 import argparse
@@ -42,7 +43,9 @@ def load_groups(input_folder):
 
 # def img_to_tensor(im, normalize=None):
 #     tensor = torch.from_numpy(
-#         np.moveaxis(im / (255.0 if im.dtype == np.uint8 else 1), -1, 0).astype(np.float32)
+#         np.moveaxis(
+#           im / (255.0 if im.dtype == np.uint8 else 1), -1, 0
+#         ).astype(np.float32)
 #     )
 #     if normalize is not None:
 #         return F.normalize(tensor, **normalize)
@@ -82,7 +85,9 @@ def process_group(input_folder, groups, indices, ranges, file_ext):
                     )
                     videos.append([video_file_path, group[1], len(video_reader)])
                     # if len(video_reader) >= 16:
-                    #     images = [img_to_tensor(im).unsqueeze_(0) for im in video_reader]
+                    #     images = [
+                    #         img_to_tensor(im).unsqueeze_(0) for im in video_reader
+                    #     ]
                     #     if len(images) < 100 or len(images) > 300:
                     #         continue
                     #     video_file_path = video_file_path.replace(
@@ -145,8 +150,8 @@ def write_to_csv(items, file_path):
 def main(input_folder, output_folder):
     """
     Main entry point, it iterates through all the video files in a folder or through all
-    sub-folders into a list with their corresponding target label. It then split the data
-    into training set and test set.
+    sub-folders into a list with their corresponding target label. 
+    It then split the data into training set and test set.
     :param input_folder: input folder contains all the video contents.
     :param output_folder: where to store the result.
     """
@@ -174,7 +179,7 @@ if __name__ == "__main__":
         "-o",
         "--output_folder",
         type=str,
-        help="Output folder for the generated training, validation and test text files.",
+        help="Output folder for the generated training, validation and test text files",
         required=True,
     )
 
