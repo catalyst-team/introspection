@@ -25,6 +25,12 @@ class CustomRunner(dl.Runner):
             "logits": logits,
         }
 
+    def get_loggers(self):
+        return {
+            "console": dl.ConsoleLogger(),
+            "wandb": dl.WandbLogger(project="wandb_test", name="experiment_1"),
+        }
+
 
 def main(use_ml: bool = False):
     # data
@@ -70,9 +76,7 @@ def main(use_ml: bool = False):
 
     criterion_ce = nn.CrossEntropyLoss()
     sampler_inbatch = AllTripletsSampler()
-    criterion_ml = TripletMarginLossWithSampler(
-        margin=0.5, sampler_inbatch=sampler_inbatch
-    )
+    criterion_ml = TripletMarginLossWithSampler(margin=0.5, sampler_inbatch=sampler_inbatch)
     criterion = {"ce": criterion_ce, "ml": criterion_ml}
 
     # runner
@@ -105,7 +109,9 @@ def main(use_ml: bool = False):
                 ),
                 dl.ControlFlowCallbackWrapper(
                     base_callback=dl.MetricAggregationCallback(
-                        metric_key="loss", metrics=["loss_ce", "loss_ml"], mode="mean",
+                        metric_key="loss",
+                        metrics=["loss_ce", "loss_ml"],
+                        mode="mean",
                     ),
                     loaders=["train"],
                 ),
@@ -135,9 +141,7 @@ def main(use_ml: bool = False):
     metrics = runner.evaluate_loader(
         loader=loaders["valid"],
         callbacks=[
-            dl.AccuracyCallback(
-                input_key="logits", target_key="targets", topk=(1, 3, 5)
-            ),
+            dl.AccuracyCallback(input_key="logits", target_key="targets", topk=(1, 3, 5)),
             dl.PrecisionRecallF1SupportCallback(
                 input_key="logits", target_key="targets", num_classes=10
             ),
