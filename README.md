@@ -38,5 +38,5 @@ PYTHONPATH=. python ./scripts/train_ts.py --use-ml
 
 #### Demo
 
-- [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)] (https://colab.research.google.com/drive/1Uo2lTQJCo31ZAejl1y7tyt8BGRE6wcxj#scrollTo=CDa4TjwSou33) [Training pipeline](./notebooks/train.ipynb)
+- [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/drive/1Uo2lTQJCo31ZAejl1y7tyt8BGRE6wcxj#scrollTo=CDa4TjwSou33) [Training pipeline](./notebooks/train.ipynb)
 - [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/catalyst-team/introspection/blob/main/notebooks/intospection.ipynb) [Captum visualization](./notebooks/intospection.ipynb)
