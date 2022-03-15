@@ -10,3 +10,4 @@ imageio
 imageio-ffmpeg
 tensorboard
 wandb
+h5py
