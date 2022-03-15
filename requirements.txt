@@ -9,3 +9,4 @@ pandas
 imageio
 imageio-ffmpeg
 tensorboard
+wandb
