@@ -62,8 +62,8 @@ def main(use_ml: bool = False):
     sampler = BatchBalanceClassSampler(labels=labels, num_classes=10, num_samples=10)
     bs = sampler.batch_size
     loaders = {
-        "train": DataLoader(train_dataset, batch_sampler=sampler, num_workers=2),
-        "valid": DataLoader(valid_dataset, batch_size=bs, num_workers=2, shuffle=False),
+        "train": DataLoader(train_dataset, batch_sampler=sampler, num_workers=4),
+        "valid": DataLoader(valid_dataset, batch_size=bs, num_workers=4, shuffle=False),
     }
 
     # model
