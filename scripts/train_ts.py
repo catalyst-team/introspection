@@ -128,6 +128,12 @@ class CustomRunner(dl.Runner):
             "logits": logits,
         }
 
+    def get_loggers(self):
+        return {
+            "console": dl.ConsoleLogger(),
+            "wandb": dl.WandbLogger(project="wandb_test", name="experiment_1"),
+        }
+
 
 def main(use_ml: bool = False):
     # data
@@ -136,9 +142,7 @@ def main(use_ml: bool = False):
         features, labels, test_size=0.33, random_state=42, stratify=labels
     )
     n_quantiles = 10
-    transform = TSQuantileTransformer(n_quantiles=n_quantiles, random_state=42).fit(
-        X_train
-    )
+    transform = TSQuantileTransformer(n_quantiles=n_quantiles, random_state=42).fit(X_train)
     X_train2 = transform.transform(X_train)
     X_test2 = transform.transform(X_test)
 
@@ -167,9 +171,7 @@ def main(use_ml: bool = False):
 
     criterion_ce = nn.CrossEntropyLoss()
     sampler_inbatch = HardTripletsSampler()
-    criterion_ml = TripletMarginLossWithSampler(
-        margin=0.5, sampler_inbatch=sampler_inbatch
-    )
+    criterion_ml = TripletMarginLossWithSampler(margin=0.5, sampler_inbatch=sampler_inbatch)
     criterion = {"ce": criterion_ce, "ml": criterion_ml}
 
     # runner
@@ -202,7 +204,9 @@ def main(use_ml: bool = False):
                 ),
                 dl.ControlFlowCallbackWrapper(
                     base_callback=dl.MetricAggregationCallback(
-                        metric_key="loss", metrics=["loss_ce", "loss_ml"], mode="mean",
+                        metric_key="loss",
+                        metrics=["loss_ce", "loss_ml"],
+                        mode="mean",
                     ),
                     loaders=["train"],
                 ),
