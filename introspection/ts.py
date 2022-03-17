@@ -99,9 +99,7 @@ def load_ABIDE1_origin(
     finalData = np.zeros((subjects, samples_per_subject, sample_x, sample_y))
     for i in range(subjects):
         for j in range(samples_per_subject):
-            finalData[i, j, :, :] = data[
-                i, :, (j * window_shift) : (j * window_shift) + sample_y
-            ]
+            finalData[i, j, :, :] = data[i, :, (j * window_shift) : (j * window_shift) + sample_y]
     finalData = torch.from_numpy(finalData).float()
 
     # print(finalData.shape)
@@ -135,12 +133,8 @@ def load_ABIDE1_origin(
     total_HC_index_tr = HC_index[: len(HC_index) - (n_val_HC + n_test_HC)]
     total_SZ_index_tr = SZ_index[: len(SZ_index) - (n_val_SZ + n_test_SZ)]
 
-    HC_index_val = HC_index[
-        len(HC_index) - (n_val_HC + n_test_HC) : len(HC_index) - n_test_HC
-    ]
-    SZ_index_val = SZ_index[
-        len(HC_index) - (n_val_SZ + n_test_SZ) : len(HC_index) - n_test_SZ
-    ]
+    HC_index_val = HC_index[len(HC_index) - (n_val_HC + n_test_HC) : len(HC_index) - n_test_HC]
+    SZ_index_val = SZ_index[len(HC_index) - (n_val_SZ + n_test_SZ) : len(HC_index) - n_test_SZ]
 
     HC_index_test = HC_index[len(HC_index) - (n_test_HC) :]
     SZ_index_test = SZ_index[len(SZ_index) - (n_test_SZ) :]
