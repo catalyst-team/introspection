@@ -131,7 +131,7 @@ class CustomRunner(dl.Runner):
     def get_loggers(self):
         return {
             "console": dl.ConsoleLogger(),
-            "wandb": dl.WandbLogger(project="wandb_test", name="experiment_1"),
+            "wandb": dl.WandbLogger(project="wandb_test", name="abide_experiment"),
         }
 
 

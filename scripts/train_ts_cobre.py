@@ -131,7 +131,7 @@ class CustomRunner(dl.Runner):
     def get_loggers(self):
         return {
             "console": dl.ConsoleLogger(),
-            "wandb": dl.WandbLogger(project="wandb_test", name="experiment_1"),
+            "wandb": dl.WandbLogger(project="wandb_test", name="cobre_experiment"),
         }
 
 
@@ -222,7 +222,7 @@ def main(use_ml: bool = False):
         optimizer=optimizer,
         scheduler=scheduler,
         loaders=loaders,
-        num_epochs=20,
+        num_epochs=15,
         callbacks=callbacks,
         logdir=f"{LOGS_ROOT}/ts-ml{ml_flag}-{strtime}",
         valid_loader="valid",
