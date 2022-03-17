@@ -14,7 +14,7 @@ from introspection.settings import DATA_ROOT
 # It will get you data in the shape: (569, 53, 140), where you have 569 subjects.
 # Each has 53 channels with 140 time points.
 # Learn from the code how to apply the same to ABIDE.
-def load_ABIDE1(
+def load_COBRE(
     dataset_path: str = DATA_ROOT.joinpath("cobre/COBRE_AllData.h5"),
     indices_path: str = DATA_ROOT.joinpath("cobre/correct_indices_GSP.csv"),
     labels_path: str = DATA_ROOT.joinpath("cobre/labels_COBRE.csv"),
