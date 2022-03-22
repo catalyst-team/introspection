@@ -11,3 +11,4 @@ imageio-ffmpeg
 tensorboard
 wandb
 h5py
+x_transformers
