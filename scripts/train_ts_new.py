@@ -368,5 +368,5 @@ if __name__ == "__main__":
     parser.add_argument("N", action="store", type=int)
     utils.boolean_flag(parser, "use-ml", default=False)
     args = parser.parse_args()
-    print("N_CHANNGELS = " str(args.N))
+    print("N_CHANNGELS = " + str(args.N))
     main(args.use_ml, args.N)
