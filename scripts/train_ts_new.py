@@ -18,6 +18,9 @@ from x_transformers import Encoder, TransformerWrapper
 from introspection.settings import LOGS_ROOT
 from introspection.ts import load_ABIDE1
 
+N_CHANNEL = 2  # up to 53 (prior)
+assert N_CHANNEL >= 1 and N_CHANNEL <= 53
+
 
 def prob_mask_like(t, prob):
     return torch.zeros_like(t).float().uniform_(0, 1) < prob
@@ -238,7 +241,9 @@ class CustomRunner(dl.Runner):
         }
 
 
-def main(use_ml: bool = False, N_CHANNEL: int = 2):
+def main(use_ml: bool = False):
+
+    print("N_CHANNEL = " + str(N_CHANNEL))
     # data
     features, labels = load_ABIDE1()
     X_train, X_test, y_train, y_test = train_test_split(
@@ -368,5 +373,5 @@ if __name__ == "__main__":
     parser.add_argument("N", action="store", type=int)
     utils.boolean_flag(parser, "use-ml", default=False)
     args = parser.parse_args()
-    print("N_CHANNGELS = " + str(args.N))
-    main(args.use_ml, args.N)
+    N_CHANNEL = args.N
+    main(args.use_ml)
