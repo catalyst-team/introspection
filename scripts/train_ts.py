@@ -9,14 +9,13 @@ from catalyst.contrib.losses import TripletMarginLossWithSampler
 from catalyst.data import BatchBalanceClassSampler
 import numpy as np
 from sklearn.model_selection import train_test_split
-from sklearn.preprocessing import QuantileTransformer
 import torch
 from torch import nn, optim
 from torch.utils.data import DataLoader, Dataset
 from x_transformers import Encoder, TransformerWrapper
 
 from introspection.settings import LOGS_ROOT
-from introspection.ts import load_ABIDE1
+from introspection.ts import load_ABIDE1, TSQuantileTransformer
 
 N_CHANNEL = 2  # up to 53 (prior)
 assert N_CHANNEL >= 1 and N_CHANNEL <= 53
@@ -106,29 +105,6 @@ class MLM(nn.Module):
         masked_seq = masked_seq.masked_fill(mask * replace_prob, self.mask_token_id)
 
         return masked_seq, labels
-
-
-class TSQuantileTransformer:
-    def __init__(self, *args, n_quantiles: int, **kwargs):
-        self.n_quantiles = n_quantiles
-        self._args = args
-        self._kwargs = kwargs
-        self.transforms = {}
-
-    def fit(self, features: np.ndarray):
-        for i in range(features.shape[1]):
-            self.transforms[i] = QuantileTransformer(
-                *self._args, n_quantiles=self.n_quantiles, **self._kwargs
-            ).fit(features[:, i, :])
-        return self
-
-    def transform(self, features: np.ndarray):
-        result = np.empty_like(features, dtype=np.int32)
-        for i in range(features.shape[1]):
-            result[:, i, :] = (
-                self.transforms[i].transform(features[:, i, :]) * self.n_quantiles
-            ).astype(np.int32)
-        return result
 
 
 class TemporalDataset(Dataset):

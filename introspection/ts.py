@@ -1,9 +1,33 @@
 import h5py
 import numpy as np
 import pandas as pd
+from sklearn.preprocessing import QuantileTransformer
 import torch
 
 from introspection.settings import DATA_ROOT
+
+
+class TSQuantileTransformer:
+    def __init__(self, *args, n_quantiles: int, **kwargs):
+        self.n_quantiles = n_quantiles
+        self._args = args
+        self._kwargs = kwargs
+        self.transforms = {}
+
+    def fit(self, features: np.ndarray):
+        for i in range(features.shape[1]):
+            self.transforms[i] = QuantileTransformer(
+                *self._args, n_quantiles=self.n_quantiles, **self._kwargs
+            ).fit(features[:, i, :])
+        return self
+
+    def transform(self, features: np.ndarray):
+        result = np.empty_like(features, dtype=np.int32)
+        for i in range(features.shape[1]):
+            result[:, i, :] = (
+                self.transforms[i].transform(features[:, i, :]) * self.n_quantiles
+            ).astype(np.int32)
+        return result
 
 
 # There are 2 different datasets COBRE and ABIDE,
