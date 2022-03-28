@@ -1,6 +1,5 @@
 import argparse
 from datetime import datetime
-import os
 from pprint import pprint
 
 from animus import IExperiment
