@@ -77,8 +77,12 @@ def get_classification_report(
     labels = sorted(set(y_true).union(y_pred))
     auc = np.zeros(len(labels))
     if y_scores is not None:
-        for i, label in enumerate(labels):
-            auc[i] = roc_auc_score((y_true == label).astype(int), y_scores[:, i])
+        if len(labels) >= 2 and len(y_scores.shape) == 2 and y_scores.shape[1] >= 2:
+            for i, label in enumerate(labels):
+                auc[i] = roc_auc_score((y_true == label).astype(int), y_scores[:, i])
+        elif len(labels) == 2 and len(y_scores.shape) == 1:
+            auc[0] = roc_auc_score((y_true == labels[0]).astype(int), 1.0 - y_scores)
+            auc[1] = roc_auc_score((y_true == labels[1]).astype(int), y_scores)
 
     accuracy = accuracy_score(y_true=y_true, y_pred=y_pred)
     precision, recall, f1, support = precision_recall_fscore_support(
@@ -86,6 +90,13 @@ def get_classification_report(
     )
 
     r_support = support / support.sum()
+
+    report = pd.DataFrame(
+        [precision, recall, f1, auc, support, r_support],
+        columns=labels,
+        index=metrics_names,
+    ).T
+
     for average in avg_names:
         avg_precision, avg_recall, avg_f1, _ = precision_recall_fscore_support(
             y_true=y_true, y_pred=y_pred, average=average, labels=labels
@@ -94,12 +105,6 @@ def get_classification_report(
         avg_metrics = avg_precision, avg_recall, avg_f1
         for k, v in zip(metrics_names[:4], avg_metrics):
             metrics[k][average] = v
-
-    report = pd.DataFrame(
-        [precision, recall, f1, auc, support, r_support],
-        columns=labels,
-        index=metrics_names,
-    ).T
 
     if beta is not None:
         _, _, fbeta, _ = precision_recall_fscore_support(
@@ -111,7 +116,7 @@ def get_classification_report(
                 y_true=y_true, y_pred=y_pred, average=average, beta=beta, labels=labels
             )
             avg_fbeta[i] = avg_beta
-        report.insert(3, "f-beta", fbeta, True)
+        report.insert(3, "fb-score", fbeta, True)
 
     metrics["support"]["macro"] = support.sum()
     metrics["precision"]["accuracy"] = accuracy
@@ -135,8 +140,8 @@ def get_classification_report(
             and len(y_scores.shape) == 2
             and y_scores.shape[1] == 2
         ):
-            auc_macro = roc_auc_score(y_true, y_scores[:, 0], average="macro")
-            auc_weighted = roc_auc_score(y_true, y_scores[:, 0], average="weighted")
+            auc_macro = roc_auc_score(y_true, y_scores[:, 1], average="macro")
+            auc_weighted = roc_auc_score(y_true, y_scores[:, 1], average="weighted")
         else:
             raise NotImplementedError()
 
@@ -147,7 +152,7 @@ def get_classification_report(
     result = pd.concat((report, metrics)).fillna("")
 
     if beta:
-        result["f-beta"]["macro"] = avg_fbeta[0]
-        result["f-beta"]["micro"] = avg_fbeta[1]
-        result["f-beta"]["weighted"] = avg_fbeta[2]
+        result["fb-score"]["macro"] = avg_fbeta[0]
+        result["fb-score"]["micro"] = avg_fbeta[1]
+        result["fb-score"]["weighted"] = avg_fbeta[2]
     return result

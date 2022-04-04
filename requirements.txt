@@ -9,7 +9,8 @@ pandas
 imageio
 imageio-ffmpeg
 tensorboard
-x-transformers
+# x-transformers
 animus
 optuna
 scikit-learn
+h5py

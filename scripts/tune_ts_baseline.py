@@ -108,11 +108,12 @@ class Experiment(IExperiment):
         report = get_classification_report(
             y_true=y_test, y_pred=y_pred, y_scores=y_scores, beta=0.5
         )
-        stats = report.loc["weighted"]
-        for key, value in stats.items():
-            if "support" not in key:
-                self._trial.set_user_attr(key, float(value))
-        self.dataset_metrics = {"score": stats["auc"]}
+        for stats_type in [0, 1, "macro", "weighted"]:
+            stats = report.loc[stats_type]
+            for key, value in stats.items():
+                if "support" not in key:
+                    self._trial.set_user_attr(f"{key}_{stats_type}", float(value))
+        self.dataset_metrics = {"score": report["auc"].loc["weighted"]}
 
     def on_epoch_end(self, exp: "IExperiment") -> None:
         super().on_epoch_end(exp)
@@ -130,7 +131,7 @@ class Experiment(IExperiment):
         self.study.optimize(self._objective, n_trials=n_trials, n_jobs=1)
 
         strtime = datetime.now().strftime("%Y%m%d-%H%M%S")
-        logfile = f"{LOGS_ROOT}/ts-q{self._quantile}-{strtime}.optuna.csv"
+        logfile = f"{LOGS_ROOT}/ts-baseline-q{self._quantile}-{strtime}.optuna.csv"
         df = self.study.trials_dataframe()
         df.to_csv(logfile, index=False)
 

@@ -153,7 +153,11 @@ class TemporalDataset(Dataset):
 
 class TemporalModel(nn.Module):
     def __init__(
-        self, num_tokens: int, max_seq_len: int, emb_features: int, out_features: int,
+        self,
+        num_tokens: int,
+        max_seq_len: int,
+        emb_features: int,
+        out_features: int,
     ):
         super().__init__()
         self.transformer = TransformerWrapper(
@@ -269,7 +273,9 @@ def main(use_ml: bool = False):
             criterion_key="mlm",
         ),
         dl.MetricAggregationCallback(
-            metric_key="loss", metrics=["loss_ce", "loss_mlm"], mode="mean",
+            metric_key="loss",
+            metrics=["loss_ce", "loss_mlm"],
+            mode="mean",
         ),
         dl.AccuracyCallback(input_key="logits", target_key="targets", topk=(1,)),
         dl.BackwardCallback(metric_key="loss" if use_ml else "loss_ce"),
@@ -290,7 +296,9 @@ def main(use_ml: bool = False):
                 ),
                 dl.ControlFlowCallbackWrapper(
                     base_callback=dl.MetricAggregationCallback(
-                        metric_key="loss", metrics=["loss_ce", "loss_ml"], mode="mean",
+                        metric_key="loss",
+                        metrics=["loss_ce", "loss_ml"],
+                        mode="mean",
                     ),
                     loaders=["train"],
                 ),

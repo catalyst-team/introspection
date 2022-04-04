@@ -118,7 +118,9 @@ def main(use_ml: bool = False, freeze_encoder: bool = False):
                 ),
                 dl.ControlFlowCallbackWrapper(
                     base_callback=dl.MetricAggregationCallback(
-                        metric_key="loss", metrics=["loss_ce", "loss_ml"], mode="mean",
+                        metric_key="loss",
+                        metrics=["loss_ce", "loss_ml"],
+                        mode="mean",
                     ),
                     loaders=["train"],
                 ),

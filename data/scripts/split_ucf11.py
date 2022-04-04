@@ -150,7 +150,7 @@ def write_to_csv(items, file_path):
 def main(input_folder, output_folder):
     """
     Main entry point, it iterates through all the video files in a folder or through all
-    sub-folders into a list with their corresponding target label. 
+    sub-folders into a list with their corresponding target label.
     It then split the data into training set and test set.
     :param input_folder: input folder contains all the video contents.
     :param output_folder: where to store the result.
