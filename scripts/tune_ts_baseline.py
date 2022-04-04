@@ -1,6 +1,4 @@
 import argparse
-from datetime import datetime
-from pprint import pprint
 
 from animus import IExperiment
 from catalyst import utils
@@ -10,7 +8,7 @@ from sklearn.ensemble import AdaBoostClassifier, RandomForestClassifier
 from sklearn.linear_model import LogisticRegression, SGDClassifier
 from sklearn.model_selection import train_test_split
 
-from introspection.settings import LOGS_ROOT
+from introspection.settings import LOGS_ROOT, UTCNOW
 from introspection.ts import load_ABIDE1, TSQuantileTransformer
 from introspection.utils import get_classification_report
 
@@ -115,10 +113,10 @@ class Experiment(IExperiment):
                     self._trial.set_user_attr(f"{key}_{stats_type}", float(value))
         self.dataset_metrics = {"score": report["auc"].loc["weighted"]}
 
-    def on_epoch_end(self, exp: "IExperiment") -> None:
-        super().on_epoch_end(exp)
-        pprint(self.epoch_metrics)
-        self._score = np.mean([v["score"] for v in self.epoch_metrics.values()])
+    def on_experiment_end(self, exp: "IExperiment") -> None:
+        super().on_experiment_end(exp)
+        # we have only 1 epoch for baselines, so...
+        self._score = self.experiment_metrics[1]["ABIDE1"]["score"]
 
     def _objective(self, trial) -> float:
         self._trial = trial
@@ -129,14 +127,16 @@ class Experiment(IExperiment):
         self.on_tune_start()
         self.study = optuna.create_study(direction="maximize")
         self.study.optimize(self._objective, n_trials=n_trials, n_jobs=1)
-
-        strtime = datetime.now().strftime("%Y%m%d-%H%M%S")
-        logfile = f"{LOGS_ROOT}/ts-baseline-q{self._quantile}-{strtime}.optuna.csv"
+        logfile = f"{LOGS_ROOT}/{UTCNOW}-ts-baseline-q{self._quantile}.optuna.csv"
         df = self.study.trials_dataframe()
         df.to_csv(logfile, index=False)
 
 
 if __name__ == "__main__":
+    import warnings
+
+    warnings.filterwarnings("ignore")
+
     parser = argparse.ArgumentParser()
     utils.boolean_flag(parser, "quantile", default=False)
     parser.add_argument("--num-trials", type=int, default=1)
