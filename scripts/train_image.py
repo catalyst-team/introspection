@@ -25,12 +25,6 @@ class CustomRunner(dl.Runner):
             "logits": logits,
         }
 
-    def get_loggers(self):
-        return {
-            "console": dl.ConsoleLogger(),
-            "wandb": dl.WandbLogger(project="wandb_test", name="experiment_1"),
-        }
-
 
 def main(use_ml: bool = False):
     # data
@@ -62,8 +56,8 @@ def main(use_ml: bool = False):
     sampler = BatchBalanceClassSampler(labels=labels, num_classes=10, num_samples=10)
     bs = sampler.batch_size
     loaders = {
-        "train": DataLoader(train_dataset, batch_sampler=sampler, num_workers=4),
-        "valid": DataLoader(valid_dataset, batch_size=bs, num_workers=4, shuffle=False),
+        "train": DataLoader(train_dataset, batch_sampler=sampler, num_workers=2),
+        "valid": DataLoader(valid_dataset, batch_size=bs, num_workers=2, shuffle=False),
     }
 
     # model
@@ -76,7 +70,9 @@ def main(use_ml: bool = False):
 
     criterion_ce = nn.CrossEntropyLoss()
     sampler_inbatch = AllTripletsSampler()
-    criterion_ml = TripletMarginLossWithSampler(margin=0.5, sampler_inbatch=sampler_inbatch)
+    criterion_ml = TripletMarginLossWithSampler(
+        margin=0.5, sampler_inbatch=sampler_inbatch
+    )
     criterion = {"ce": criterion_ce, "ml": criterion_ml}
 
     # runner
@@ -141,7 +137,9 @@ def main(use_ml: bool = False):
     metrics = runner.evaluate_loader(
         loader=loaders["valid"],
         callbacks=[
-            dl.AccuracyCallback(input_key="logits", target_key="targets", topk=(1, 3, 5)),
+            dl.AccuracyCallback(
+                input_key="logits", target_key="targets", topk=(1, 3, 5)
+            ),
             dl.PrecisionRecallF1SupportCallback(
                 input_key="logits", target_key="targets", num_classes=10
             ),

@@ -1,0 +1,158 @@
+from collections import defaultdict
+
+import numpy as np
+import pandas as pd
+from sklearn.metrics import (
+    accuracy_score,
+    precision_recall_fscore_support,
+    roc_auc_score,
+)
+
+
+# TODO: adapted from (make a PR)
+# from catalyst.contrib.utils.report import get_classification_report
+def get_classification_report(
+    y_true: np.ndarray,
+    y_pred: np.ndarray,
+    y_scores: np.ndarray = None,
+    beta: float = None,
+) -> pd.DataFrame:
+    """Generates pandas-based per-class and aggregated classification metrics.
+
+    Args:
+        y_true (np.ndarray): ground truth labels
+        y_pred (np.ndarray): predicted model labels
+        y_scores (np.ndarray): predicted model scores. Defaults to None.
+        beta (float, optional): Beta parameter for custom Fbeta score computation.
+            Defaults to None.
+
+    Returns:
+        pd.DataFrame: pandas dataframe with main classification metrics.
+
+    Examples:
+
+    .. code-block:: python
+
+        from sklearn import datasets, linear_model, metrics
+        from sklearn.model_selection import train_test_split
+        from catalyst import utils
+
+        digits = datasets.load_digits()
+
+        # flatten the images
+        n_samples = len(digits.images)
+        data = digits.images.reshape((n_samples, -1))
+
+        # Create a classifier
+        clf = linear_model.LogisticRegression(multi_class="ovr")
+
+        # Split data into 50% train and 50% test subsets
+        X_train, X_test, y_train, y_test = train_test_split(
+            data, digits.target, test_size=0.5, shuffle=False)
+
+        # Learn the digits on the train subset
+        clf.fit(X_train, y_train)
+
+        # Predict the value of the digit on the test subset
+        y_scores = clf.predict_proba(X_test)
+        y_pred = clf.predict(X_test)
+
+        utils.get_classification_report(
+            y_true=y_test,
+            y_pred=y_pred,
+            y_scores=y_scores,
+            beta=0.5
+        )
+    """
+    metrics = defaultdict(lambda: {})
+    metrics_names = [
+        "precision",
+        "recall",
+        "f1-score",
+        "auc",
+        "support",
+        "support (%)",
+    ]
+    avg_names = ["macro", "micro", "weighted"]
+    labels = sorted(set(y_true).union(y_pred))
+    auc = np.zeros(len(labels))
+    if y_scores is not None:
+        if len(labels) >= 2 and len(y_scores.shape) == 2 and y_scores.shape[1] >= 2:
+            for i, label in enumerate(labels):
+                auc[i] = roc_auc_score((y_true == label).astype(int), y_scores[:, i])
+        elif len(labels) == 2 and len(y_scores.shape) == 1:
+            auc[0] = roc_auc_score((y_true == labels[0]).astype(int), 1.0 - y_scores)
+            auc[1] = roc_auc_score((y_true == labels[1]).astype(int), y_scores)
+
+    accuracy = accuracy_score(y_true=y_true, y_pred=y_pred)
+    precision, recall, f1, support = precision_recall_fscore_support(
+        y_true=y_true, y_pred=y_pred, average=None, labels=labels
+    )
+
+    r_support = support / support.sum()
+
+    report = pd.DataFrame(
+        [precision, recall, f1, auc, support, r_support],
+        columns=labels,
+        index=metrics_names,
+    ).T
+
+    for average in avg_names:
+        avg_precision, avg_recall, avg_f1, _ = precision_recall_fscore_support(
+            y_true=y_true, y_pred=y_pred, average=average, labels=labels
+        )
+
+        avg_metrics = avg_precision, avg_recall, avg_f1
+        for k, v in zip(metrics_names[:4], avg_metrics):
+            metrics[k][average] = v
+
+    if beta is not None:
+        _, _, fbeta, _ = precision_recall_fscore_support(
+            y_true=y_true, y_pred=y_pred, average=None, beta=beta, labels=labels
+        )
+        avg_fbeta = np.zeros(len(avg_names))
+        for i, average in enumerate(avg_names):
+            _, _, avg_beta, _ = precision_recall_fscore_support(
+                y_true=y_true, y_pred=y_pred, average=average, beta=beta, labels=labels
+            )
+            avg_fbeta[i] = avg_beta
+        report.insert(3, "fb-score", fbeta, True)
+
+    metrics["support"]["macro"] = support.sum()
+    metrics["precision"]["accuracy"] = accuracy
+    if y_scores is not None:
+        if len(y_true.shape) == 1 and len(y_scores.shape) == 1:
+            auc_macro = roc_auc_score(y_true, y_scores, average="macro")
+            auc_weighted = roc_auc_score(y_true, y_scores, average="weighted")
+        elif (
+            len(y_true.shape) == 2
+            and len(y_scores.shape) == 2
+            and y_true.shape[1] == y_scores.shape[1]
+        ):
+            auc_macro = roc_auc_score(
+                y_true, y_scores, multi_class="ovr", average="macro"
+            )
+            auc_weighted = roc_auc_score(
+                y_true, y_scores, multi_class="ovr", average="weighted"
+            )
+        elif (
+            len(y_true.shape) == 1
+            and len(y_scores.shape) == 2
+            and y_scores.shape[1] == 2
+        ):
+            auc_macro = roc_auc_score(y_true, y_scores[:, 1], average="macro")
+            auc_weighted = roc_auc_score(y_true, y_scores[:, 1], average="weighted")
+        else:
+            raise NotImplementedError()
+
+        metrics["auc"]["macro"] = auc_macro
+        metrics["auc"]["weighted"] = auc_weighted
+    metrics = pd.DataFrame(metrics, index=avg_names + ["accuracy"])
+
+    result = pd.concat((report, metrics)).fillna("")
+
+    if beta:
+        result["fb-score"]["macro"] = avg_fbeta[0]
+        result["fb-score"]["micro"] = avg_fbeta[1]
+        result["fb-score"]["weighted"] = avg_fbeta[2]
+    return result

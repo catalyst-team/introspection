@@ -13,7 +13,7 @@ from torch import nn, optim
 from torch.utils.data import DataLoader, Dataset
 
 from introspection.settings import LOGS_ROOT
-from introspection.ts_cobre import load_COBRE
+from introspection.ts import load_ABIDE1
 
 
 class TSQuantileTransformer:
@@ -131,13 +131,13 @@ class CustomRunner(dl.Runner):
     def get_loggers(self):
         return {
             "console": dl.ConsoleLogger(),
-            "wandb": dl.WandbLogger(project="wandb_test", name="cobre_experiment"),
+            "wandb": dl.WandbLogger(project="wandb_test", name="abide_experiment"),
         }
 
 
 def main(use_ml: bool = False):
     # data
-    features, labels = load_COBRE()
+    features, labels = load_ABIDE1()
     X_train, X_test, y_train, y_test = train_test_split(
         features, labels, test_size=0.33, random_state=42, stratify=labels
     )
@@ -222,7 +222,7 @@ def main(use_ml: bool = False):
         optimizer=optimizer,
         scheduler=scheduler,
         loaders=loaders,
-        num_epochs=15,
+        num_epochs=20,
         callbacks=callbacks,
         logdir=f"{LOGS_ROOT}/ts-ml{ml_flag}-{strtime}",
         valid_loader="valid",
@@ -240,6 +240,7 @@ def main(use_ml: bool = False):
             dl.PrecisionRecallF1SupportCallback(
                 input_key="logits", target_key="targets", num_classes=2
             ),
+            dl.AUCCallback(input_key="logits", target_key="targets"),
         ],
     )
     print(metrics)

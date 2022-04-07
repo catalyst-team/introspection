@@ -1,9 +1,33 @@
 import h5py
 import numpy as np
 import pandas as pd
+from sklearn.preprocessing import QuantileTransformer
 import torch
 
 from introspection.settings import DATA_ROOT
+
+
+class TSQuantileTransformer:
+    def __init__(self, *args, n_quantiles: int, **kwargs):
+        self.n_quantiles = n_quantiles
+        self._args = args
+        self._kwargs = kwargs
+        self.transforms = {}
+
+    def fit(self, features: np.ndarray):
+        for i in range(features.shape[1]):
+            self.transforms[i] = QuantileTransformer(
+                *self._args, n_quantiles=self.n_quantiles, **self._kwargs
+            ).fit(features[:, i, :])
+        return self
+
+    def transform(self, features: np.ndarray):
+        result = np.empty_like(features, dtype=np.int32)
+        for i in range(features.shape[1]):
+            result[:, i, :] = (
+                self.transforms[i].transform(features[:, i, :]) * self.n_quantiles
+            ).astype(np.int32)
+        return result
 
 
 # There are 2 different datasets COBRE and ABIDE,
@@ -99,7 +123,9 @@ def load_ABIDE1_origin(
     finalData = np.zeros((subjects, samples_per_subject, sample_x, sample_y))
     for i in range(subjects):
         for j in range(samples_per_subject):
-            finalData[i, j, :, :] = data[i, :, (j * window_shift) : (j * window_shift) + sample_y]
+            finalData[i, j, :, :] = data[
+                i, :, (j * window_shift) : (j * window_shift) + sample_y
+            ]
     finalData = torch.from_numpy(finalData).float()
 
     # print(finalData.shape)
@@ -133,8 +159,12 @@ def load_ABIDE1_origin(
     total_HC_index_tr = HC_index[: len(HC_index) - (n_val_HC + n_test_HC)]
     total_SZ_index_tr = SZ_index[: len(SZ_index) - (n_val_SZ + n_test_SZ)]
 
-    HC_index_val = HC_index[len(HC_index) - (n_val_HC + n_test_HC) : len(HC_index) - n_test_HC]
-    SZ_index_val = SZ_index[len(HC_index) - (n_val_SZ + n_test_SZ) : len(HC_index) - n_test_SZ]
+    HC_index_val = HC_index[
+        len(HC_index) - (n_val_HC + n_test_HC) : len(HC_index) - n_test_HC
+    ]
+    SZ_index_val = SZ_index[
+        len(HC_index) - (n_val_SZ + n_test_SZ) : len(HC_index) - n_test_SZ
+    ]
 
     HC_index_test = HC_index[len(HC_index) - (n_test_HC) :]
     SZ_index_test = SZ_index[len(SZ_index) - (n_test_SZ) :]
