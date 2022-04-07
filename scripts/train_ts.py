@@ -214,7 +214,7 @@ class CustomRunner(dl.Runner):
         return {
         "console": dl.ConsoleLogger(),
         "wandb": dl.WandbLogger(
-            project="wandb_test", name="abide_experiment_new N_CANNELS = " + str(args.N)
+            project="train_ts", name="abide_experiment_N_CANNELS = " + str(args.N)
         ),
     }
 
@@ -347,6 +347,8 @@ def main(use_ml: bool = False):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
+    parser.add_argument("N", action="store", type=int)
     utils.boolean_flag(parser, "use-ml", default=False)
     args = parser.parse_args()
+    N_CHANNEL = args.N
     main(args.use_ml)
