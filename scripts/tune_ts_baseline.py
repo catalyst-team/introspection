@@ -12,12 +12,23 @@ from introspection.settings import LOGS_ROOT, UTCNOW
 from introspection.ts import load_ABIDE1, TSQuantileTransformer
 from introspection.utils import get_classification_report
 
+import wandb
+import time
+import pdb
+
 
 class Experiment(IExperiment):
     def __init__(self, quantile: bool) -> None:
         super().__init__()
         self._quantile: bool = quantile
         self._trial: optuna.Trial = None
+
+        # init wandb logger
+        self.wandbLogger: wandb.run = wandb.init(
+            project="tune_ts_baseline", name="tune_ts_baseline"
+        )
+        # for timer
+        self.start: float = 0.0
 
     def on_tune_start(self):
         features, labels = load_ABIDE1()
@@ -50,13 +61,12 @@ class Experiment(IExperiment):
                 "RandomForestClassifier",
             ],
         )
+
         if clf_type == "LogisticRegression":
             solver = self._trial.suggest_categorical(
                 "classifier.logistic.solver", ["liblinear", "lbfgs"]
             )
-            decay = self._trial.suggest_loguniform(
-                "classifier.logistic.C", low=1e-3, high=1e3
-            )
+            decay = self._trial.suggest_loguniform("classifier.logistic.C", low=1e-3, high=1e3)
             if solver == "liblinear":
                 penalty = self._trial.suggest_categorical(
                     "classifier.logistic.penalty", ["l1", "l2"]
@@ -71,9 +81,7 @@ class Experiment(IExperiment):
             penalty = self._trial.suggest_categorical(
                 "classifier.sgd.penalty", ["l1", "l2", "elasticnet"]
             )
-            alpha = self._trial.suggest_loguniform(
-                "classifier.sgd.alpha", low=1e-4, high=1e-2
-            )
+            alpha = self._trial.suggest_loguniform("classifier.sgd.alpha", low=1e-4, high=1e-2)
             self.classifier = SGDClassifier(
                 loss="modified_huber",
                 penalty=penalty,
@@ -116,17 +124,39 @@ class Experiment(IExperiment):
     def on_experiment_end(self, exp: "IExperiment") -> None:
         super().on_experiment_end(exp)
         # we have only 1 epoch for baselines, so...
+        # pdb.set_trace()
         self._score = self.experiment_metrics[1]["ABIDE1"]["score"]
 
     def _objective(self, trial) -> float:
+        # start timer
+        self.start = time.process_time()
+
         self._trial = trial
         self.run()
+
+        # log score and experiment time
+        self.wandbLogger.log(
+            {
+                "overall score": self._score,
+                type(self.classifier).__name__ + " score": self._score,
+                type(self.classifier).__name__ + " time": time.process_time() - self.start,
+            }
+        )
+
+        # pdb.set_trace()
         return self._score
 
     def tune(self, n_trials: int):
+        # pdb.set_trace()
         self.on_tune_start()
+
+        # pdb.set_trace()
         self.study = optuna.create_study(direction="maximize")
+
+        # pdb.set_trace()
         self.study.optimize(self._objective, n_trials=n_trials, n_jobs=1)
+
+        # pdb.set_trace()
         logfile = f"{LOGS_ROOT}/{UTCNOW}-ts-baseline-q{self._quantile}.optuna.csv"
         df = self.study.trials_dataframe()
         df.to_csv(logfile, index=False)
