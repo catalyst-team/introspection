@@ -4,6 +4,9 @@ __pycache__/
 *.py[cod]
 *$py.class
 
+#data
+data/UCF11*
+
 # C extensions
 *.so
 
@@ -110,6 +113,8 @@ ENV/
 
 *.bak
 *.csv
+!data/abide/*.csv
+!data/cobre/*.csv
 *.tsv
 *.ipynb
 
@@ -119,7 +124,6 @@ logs/
 !examples/distilbert_text_classification/input/*.csv
 !tests/_tests_nlp_classification/input/*.csv
 tests/logs/
-notebooks/
 
 _nogit*
 
