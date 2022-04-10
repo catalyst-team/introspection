@@ -1,6 +1,7 @@
 import argparse
 
 from animus import IExperiment
+from apto.utils.report import get_classification_report
 from catalyst import utils
 import numpy as np
 import optuna
@@ -8,9 +9,8 @@ from sklearn.ensemble import AdaBoostClassifier, RandomForestClassifier
 from sklearn.linear_model import LogisticRegression, SGDClassifier
 from sklearn.model_selection import train_test_split
 
-from introspection.settings import LOGS_ROOT, UTCNOW
-from introspection.ts import load_ABIDE1, TSQuantileTransformer
-from introspection.utils import get_classification_report
+from src.settings import LOGS_ROOT, UTCNOW
+from src.ts import load_ABIDE1, TSQuantileTransformer
 
 
 class Experiment(IExperiment):
@@ -102,9 +102,9 @@ class Experiment(IExperiment):
         X_train, X_test, y_train, y_test = self.dataset
         self.classifier.fit(X_train, y_train)
         y_pred = self.classifier.predict(X_test)
-        y_scores = self.classifier.predict_proba(X_test)
+        y_score = self.classifier.predict_proba(X_test)
         report = get_classification_report(
-            y_true=y_test, y_pred=y_pred, y_scores=y_scores, beta=0.5
+            y_true=y_test, y_pred=y_pred, y_score=y_score, beta=0.5
         )
         for stats_type in [0, 1, "macro", "weighted"]:
             stats = report.loc[stats_type]
