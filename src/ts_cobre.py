@@ -3,7 +3,7 @@ import numpy as np
 import pandas as pd
 import torch
 
-from introspection.settings import DATA_ROOT
+from src.settings import DATA_ROOT
 
 
 # There are 2 different datasets COBRE and ABIDE,

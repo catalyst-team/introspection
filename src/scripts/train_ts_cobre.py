@@ -12,8 +12,8 @@ from sklearn.preprocessing import QuantileTransformer
 from torch import nn, optim
 from torch.utils.data import DataLoader, Dataset
 
-from introspection.settings import LOGS_ROOT
-from introspection.ts_cobre import load_COBRE
+from src.settings import LOGS_ROOT
+from src.ts_cobre import load_COBRE
 
 
 class TSQuantileTransformer:

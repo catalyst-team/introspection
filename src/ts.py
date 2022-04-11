@@ -4,7 +4,7 @@ import pandas as pd
 from sklearn.preprocessing import QuantileTransformer
 import torch
 
-from introspection.settings import DATA_ROOT
+from src.settings import DATA_ROOT
 
 
 class TSQuantileTransformer:

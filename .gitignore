@@ -5,7 +5,7 @@ __pycache__/
 *$py.class
 
 #data
-data/UCF11*
+/assets/data/UCF*
 
 # C extensions
 *.so

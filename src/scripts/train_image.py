@@ -1,17 +1,17 @@
 import argparse
 from datetime import datetime
+import os
 
 from catalyst import dl, utils
 from catalyst.contrib.data import AllTripletsSampler
 from catalyst.contrib.losses import TripletMarginLossWithSampler
-from catalyst.data import BatchBalanceClassSampler, BatchPrefetchLoaderWrapper
-import pandas as pd
+from catalyst.data import BatchBalanceClassSampler
 from torch import nn, optim
 from torch.utils.data import DataLoader
+from torchvision import datasets, transforms
 
-from introspection.datasets import TemporalDataset
-from introspection.modules import TemporalResNet
-from introspection.settings import DATA_ROOT, LOGS_ROOT
+from src.modules import resnet9
+from src.settings import LOGS_ROOT
 
 
 class CustomRunner(dl.Runner):
@@ -19,14 +19,8 @@ class CustomRunner(dl.Runner):
         images, targets = batch
         embeddings, logits = self.model(images)
 
-        # batch size, length, feature size
-        bs, ln, fs = embeddings.shape
-        t_embeddings = embeddings.view(bs * ln, fs)
-        t_targets = targets.repeat_interleave(ln)
-
         self.batch = {
-            "temporal_embeddings": t_embeddings,
-            "temporal_targets": t_targets,
+            "embeddings": embeddings,
             "targets": targets,
             "logits": logits,
         }
@@ -38,54 +32,47 @@ class CustomRunner(dl.Runner):
         }
 
 
-def main(use_ml: bool = False, freeze_encoder: bool = False):
+def main(use_ml: bool = False):
     # data
-    train_csv = pd.read_csv(
-        f"{DATA_ROOT}/UCF11_updated_mpg_clean/train.csv",
-        header=None,
-        names=["path", "class", "length"],
-    )
-    valid_csv = pd.read_csv(
-        f"{DATA_ROOT}/UCF11_updated_mpg_clean/valid.csv",
-        header=None,
-        names=["path", "class", "length"],
+    transform_train = transforms.Compose(
+        [
+            transforms.RandomCrop(32, padding=4),
+            transforms.RandomHorizontalFlip(),
+            transforms.ToTensor(),
+            transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010)),
+        ]
     )
 
-    num_segments = 5
-    segment_len = 5
-    train_dataset = TemporalDataset(
-        train_csv,
-        f"{DATA_ROOT}/UCF11_updated_mpg",
-        num_segments=num_segments,
-        segment_len=segment_len,
+    transform_valid = transforms.Compose(
+        [
+            transforms.ToTensor(),
+            transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010)),
+        ]
     )
-    valid_dataset = TemporalDataset(
-        valid_csv,
-        f"{DATA_ROOT}/UCF11_updated_mpg",
-        num_segments=num_segments,
-        segment_len=segment_len,
+
+    train_dataset = datasets.CIFAR10(
+        os.getcwd(), train=True, download=True, transform=transform_train
+    )
+    valid_dataset = datasets.CIFAR10(
+        os.getcwd(), train=False, download=True, transform=transform_valid
     )
 
     # loaders
-    labels = train_dataset.get_labels()
-    sampler = BatchBalanceClassSampler(labels=labels, num_classes=6, num_samples=2)
+    labels = train_dataset.targets
+    sampler = BatchBalanceClassSampler(labels=labels, num_classes=10, num_samples=10)
     bs = sampler.batch_size
     loaders = {
         "train": DataLoader(train_dataset, batch_sampler=sampler, num_workers=4),
         "valid": DataLoader(valid_dataset, batch_size=bs, num_workers=4, shuffle=False),
     }
-    loaders = {k: BatchPrefetchLoaderWrapper(v) for k, v in loaders.items()}
 
     # model
-    model = TemporalResNet(
-        emb_features=256,
-        out_features=train_csv["class"].nunique(),
-        arch="resnet18",
-        pretrained=True,
-        freeze_encoder=freeze_encoder,
-    )
-    optimizer = optim.AdamW(model.parameters(), lr=0.001, weight_decay=0.0005)
-    scheduler = optim.lr_scheduler.MultiStepLR(optimizer, milestones=[10], gamma=0.3)
+    model = resnet9(in_channels=3, num_classes=10)
+    criterion = nn.CrossEntropyLoss()
+    optimizer = optim.SGD(model.parameters(), lr=0.1, momentum=0.9, weight_decay=5e-4)
+    scheduler = optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=200)
+    # optimizer = optim.Adam(model.parameters(), lr=1e-3)
+    # scheduler = optim.lr_scheduler.MultiStepLR(optimizer, [5, 8], gamma=0.3)
 
     criterion_ce = nn.CrossEntropyLoss()
     sampler_inbatch = AllTripletsSampler()
@@ -113,8 +100,8 @@ def main(use_ml: bool = False, freeze_encoder: bool = False):
             [
                 dl.ControlFlowCallbackWrapper(
                     base_callback=dl.CriterionCallback(
-                        input_key="temporal_embeddings",
-                        target_key="temporal_targets",
+                        input_key="embeddings",
+                        target_key="targets",
                         metric_key="loss_ml",
                         criterion_key="ml",
                     ),
@@ -134,16 +121,15 @@ def main(use_ml: bool = False, freeze_encoder: bool = False):
     # train
     strtime = datetime.now().strftime("%Y%m%d-%H%M%S")
     ml_flag = int(use_ml)
-    encoder_flag = int(not freeze_encoder)
     runner.train(
         model=model,
         criterion=criterion,
         optimizer=optimizer,
         scheduler=scheduler,
         loaders=loaders,
-        num_epochs=20,
+        num_epochs=200,
         callbacks=callbacks,
-        logdir=f"{LOGS_ROOT}/video-ml{ml_flag}-encoder{encoder_flag}-{strtime}",
+        logdir=f"{LOGS_ROOT}/image-ml{ml_flag}-{strtime}",
         valid_loader="valid",
         valid_metric="accuracy01",
         minimize_valid_metric=False,
@@ -157,7 +143,7 @@ def main(use_ml: bool = False, freeze_encoder: bool = False):
         callbacks=[
             dl.AccuracyCallback(input_key="logits", target_key="targets", topk=(1, 3, 5)),
             dl.PrecisionRecallF1SupportCallback(
-                input_key="logits", target_key="targets", num_classes=11
+                input_key="logits", target_key="targets", num_classes=10
             ),
         ],
     )
@@ -167,6 +153,5 @@ def main(use_ml: bool = False, freeze_encoder: bool = False):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     utils.boolean_flag(parser, "use-ml", default=False)
-    utils.boolean_flag(parser, "freeze-encoder", default=False)
     args = parser.parse_args()
-    main(args.use_ml, args.freeze_encoder)
+    main(args.use_ml)

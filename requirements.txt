@@ -15,3 +15,4 @@ optuna
 scikit-learn
 h5py
 wandb
+apto==0.0.1

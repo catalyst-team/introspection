@@ -2,6 +2,7 @@ import argparse
 
 from animus import EarlyStoppingCallback, IExperiment
 from animus.torch.callbacks import TorchCheckpointerCallback
+from apto.utils.report import get_classification_report
 from catalyst import utils
 import numpy as np
 import optuna
@@ -12,9 +13,8 @@ import torch.optim as optim
 from torch.utils.data import DataLoader, TensorDataset
 from tqdm.auto import tqdm
 
-from introspection.settings import LOGS_ROOT, UTCNOW
-from introspection.ts import load_ABIDE1, TSQuantileTransformer
-from introspection.utils import get_classification_report
+from src.settings import LOGS_ROOT, UTCNOW
+from src.ts import load_ABIDE1, TSQuantileTransformer
 
 
 class LSTM(nn.Module):
@@ -143,6 +143,7 @@ class Experiment(IExperiment):
                 self.optimizer.zero_grad()
                 score = self.model(data)
                 loss = self.criterion(score, target)
+                score = torch.sigmoid(score)
                 pred = (score > 0.5).to(torch.int32)
 
                 all_scores.append(score.cpu().detach().numpy())
@@ -157,10 +158,10 @@ class Experiment(IExperiment):
         total_accuracy /= self.dataset_batch_step * self.batch_size
 
         y_test = np.hstack(all_targets)
-        y_scores = np.hstack(all_scores)
-        y_pred = (y_scores > 0.5).astype(np.int32)
+        y_score = np.hstack(all_scores)
+        y_pred = (y_score > 0.5).astype(np.int32)
         report = get_classification_report(
-            y_true=y_test, y_pred=y_pred, y_scores=y_scores, beta=0.5
+            y_true=y_test, y_pred=y_pred, y_score=y_score, beta=0.5
         )
         for stats_type in [0, 1, "macro", "weighted"]:
             stats = report.loc[stats_type]
