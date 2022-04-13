@@ -15,7 +15,6 @@ from src.ts import load_ABIDE1, TSQuantileTransformer
 import wandb
 import time
 from collections import defaultdict
-import pdb
 
 
 class Experiment(IExperiment):
@@ -127,7 +126,6 @@ class Experiment(IExperiment):
     def on_experiment_end(self, exp: "IExperiment") -> None:
         super().on_experiment_end(exp)
         # we have only 1 epoch for baselines, so...
-        # pdb.set_trace()
         self._score = self.experiment_metrics[1]["ABIDE1"]["score"]
 
     def _objective(self, trial) -> float:
@@ -144,7 +142,6 @@ class Experiment(IExperiment):
             self._score, time.process_time() - self.start
         )
 
-        # pdb.set_trace()
         return self._score
 
     def tune(self, n_trials: int):
