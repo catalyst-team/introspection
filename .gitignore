@@ -113,8 +113,8 @@ ENV/
 
 *.bak
 *.csv
-!data/abide/*.csv
-!data/cobre/*.csv
+!src/data/abide/*.csv
+!src/data/cobre/*.csv
 *.tsv
 *.ipynb
 
