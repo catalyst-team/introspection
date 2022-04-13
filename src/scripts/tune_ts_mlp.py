@@ -80,7 +80,7 @@ class Experiment(IExperiment):
         self.logdir = logdir
 
         # init wandb logger
-        self.wandbLogger: wandb.run = wandb.init(project="tune_ts", name="lstm")
+        self.wandbLogger: wandb.run = wandb.init(project="tune_ts", name="mlp")
 
     def on_tune_start(self):
         features, labels = load_ABIDE1()
