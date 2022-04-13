@@ -14,6 +14,7 @@ from src.ts import load_ABIDE1, TSQuantileTransformer
 
 import wandb
 import time
+from collections import defaultdict
 import pdb
 
 
@@ -24,11 +25,20 @@ class Experiment(IExperiment):
         self._trial: optuna.Trial = None
 
         # init wandb logger
-        self.wandbLogger: wandb.run = wandb.init(
-            project="tune_ts_baseline", name="tune_ts_baseline"
-        )
+        self.wandbLogger: wandb.run = wandb.init(project="tune_ts", name="baseline")
         # for timer
         self.start: float = 0.0
+        # set classifiers
+        self.classifiers = [
+            "LogisticRegression",
+            "SGDClassifier",
+            "AdaBoostClassifier",
+            "RandomForestClassifier",
+        ]
+        # initialize tables for different classifiers
+        self.wandb_tables: dict = {}
+        for classifier in self.classifiers:
+            self.wandb_tables[classifier] = wandb.Table(columns=["score", "time"])
 
     def on_tune_start(self):
         features, labels = load_ABIDE1()
@@ -54,12 +64,7 @@ class Experiment(IExperiment):
         # setup model
         clf_type = self._trial.suggest_categorical(
             "classifier",
-            choices=[
-                "LogisticRegression",
-                "SGDClassifier",
-                "AdaBoostClassifier",
-                "RandomForestClassifier",
-            ],
+            choices=self.classifiers,
         )
 
         if clf_type == "LogisticRegression":
@@ -111,9 +116,7 @@ class Experiment(IExperiment):
         self.classifier.fit(X_train, y_train)
         y_pred = self.classifier.predict(X_test)
         y_score = self.classifier.predict_proba(X_test)
-        report = get_classification_report(
-            y_true=y_test, y_pred=y_pred, y_score=y_score, beta=0.5
-        )
+        report = get_classification_report(y_true=y_test, y_pred=y_pred, y_score=y_score, beta=0.5)
         for stats_type in [0, 1, "macro", "weighted"]:
             stats = report.loc[stats_type]
             for key, value in stats.items():
@@ -134,29 +137,38 @@ class Experiment(IExperiment):
         self._trial = trial
         self.run()
 
-        # log score and experiment time
-        self.wandbLogger.log(
-            {
-                "overall score": self._score,
-                type(self.classifier).__name__ + " score": self._score,
-                type(self.classifier).__name__ + " time": time.process_time() - self.start,
-            }
+        # log overall score
+        self.wandbLogger.log({"overall score": self._score})
+
+        self.wandb_tables[type(self.classifier).__name__].add_data(
+            self._score, time.process_time() - self.start
         )
 
         # pdb.set_trace()
         return self._score
 
     def tune(self, n_trials: int):
-        # pdb.set_trace()
         self.on_tune_start()
-
-        # pdb.set_trace()
         self.study = optuna.create_study(direction="maximize")
-
-        # pdb.set_trace()
         self.study.optimize(self._objective, n_trials=n_trials, n_jobs=1)
 
-        # pdb.set_trace()
+        # log score and experiment time
+        for classifier in self.classifiers:
+            tableLength = len(self.wandb_tables[classifier].get_column("score"))
+            self.wandb_tables[classifier].add_column(name="step", data=list(range(tableLength)))
+
+            line_series = wandb.plot.line_series(
+                xs=self.wandb_tables[classifier].get_column("step"),
+                ys=[
+                    self.wandb_tables[classifier].get_column("score"),
+                    self.wandb_tables[classifier].get_column("time"),
+                ],
+                keys=["score", "time"],
+                title=classifier,
+                xname="step",
+            )
+            wandb.log({classifier: line_series})
+
         logfile = f"{LOGS_ROOT}/{UTCNOW}-ts-baseline-q{self._quantile}.optuna.csv"
         df = self.study.trials_dataframe()
         df.to_csv(logfile, index=False)
