@@ -16,6 +16,8 @@ from tqdm.auto import tqdm
 from src.settings import LOGS_ROOT, UTCNOW
 from src.ts import load_ABIDE1, TSQuantileTransformer
 
+import wandb
+
 
 class ResidualBlock(nn.Module):
     def __init__(self, block):
@@ -76,6 +78,9 @@ class Experiment(IExperiment):
         self._trial: optuna.Trial = None
         self.max_epochs = max_epochs
         self.logdir = logdir
+
+        # init wandb logger
+        self.wandbLogger: wandb.run = wandb.init(project="tune_ts", name="lstm")
 
     def on_tune_start(self):
         features, labels = load_ABIDE1()
@@ -173,9 +178,7 @@ class Experiment(IExperiment):
         y_test = np.hstack(all_targets)
         y_score = np.hstack(all_scores)
         y_pred = (y_score > 0.5).astype(np.int32)
-        report = get_classification_report(
-            y_true=y_test, y_pred=y_pred, y_score=y_score, beta=0.5
-        )
+        report = get_classification_report(y_true=y_test, y_pred=y_pred, y_score=y_score, beta=0.5)
         for stats_type in [0, 1, "macro", "weighted"]:
             stats = report.loc[stats_type]
             for key, value in stats.items():
@@ -195,6 +198,10 @@ class Experiment(IExperiment):
     def _objective(self, trial) -> float:
         self._trial = trial
         self.run()
+
+        # log score
+        self.wandbLogger.log({"score": self._score})
+
         return self._score
 
     def tune(self, n_trials: int):
