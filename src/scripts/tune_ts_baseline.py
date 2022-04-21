@@ -1,10 +1,13 @@
 import argparse
+import os
 
 from animus import IExperiment
 from apto.utils.report import get_classification_report
 from catalyst import utils
+import matplotlib.pyplot as plt
 import numpy as np
 import optuna
+import seaborn as sns
 from sklearn.ensemble import AdaBoostClassifier, RandomForestClassifier
 from sklearn.linear_model import LogisticRegression, SGDClassifier
 from sklearn.model_selection import train_test_split
@@ -12,18 +15,41 @@ from sklearn.model_selection import train_test_split
 from src.settings import LOGS_ROOT, UTCNOW
 from src.ts import load_ABIDE1, TSQuantileTransformer
 
+sns.set_theme(style="whitegrid", font_scale=2, rc={"figure.figsize": (18, 9)})
+
+
+def compute_feature_importance(classifier, num_channels, num_times, logpath: str = None):
+    if isinstance(classifier, (RandomForestClassifier, AdaBoostClassifier)):
+        f_importance = classifier.feature_importances_
+    elif isinstance(classifier, (SGDClassifier, LogisticRegression)):
+        f_importance = classifier.coef_.swapaxes(0, 1)
+    else:
+        raise NotImplementedError()
+    f_importance = f_importance.reshape(num_channels, num_times)
+
+    if logpath is not None:
+        sns.heatmap(f_importance)
+        plt.title(str(classifier))
+        plt.savefig(logpath, format="png", dpi=300)
+        plt.close()
+    return f_importance
+
 
 class Experiment(IExperiment):
     def __init__(self, quantile: bool) -> None:
         super().__init__()
         self._quantile: bool = quantile
+        self._logdir = f"{LOGS_ROOT}/{UTCNOW}-ts-baseline-q{self._quantile}"
         self._trial: optuna.Trial = None
+        os.makedirs(self._logdir)
 
     def on_tune_start(self):
         features, labels = load_ABIDE1()
         X_train, X_test, y_train, y_test = train_test_split(
             features, labels, test_size=0.2, random_state=42, stratify=labels
         )
+        self._num_channels, self._num_times = X_train.shape[1:]
+
         if self._quantile:
             n_quantiles = 10
             n_offset = 3  # 0 - pad, 1 - cls, 2 - mask
@@ -103,6 +129,12 @@ class Experiment(IExperiment):
         self.classifier.fit(X_train, y_train)
         y_pred = self.classifier.predict(X_test)
         y_score = self.classifier.predict_proba(X_test)
+        compute_feature_importance(
+            classifier=self.classifier,
+            num_channels=self._num_channels,
+            num_times=self._num_times,
+            logpath=f"{self._logdir}/{self._trial.number}.coefs.png",
+        )
         report = get_classification_report(
             y_true=y_test, y_pred=y_pred, y_score=y_score, beta=0.5
         )
@@ -127,9 +159,8 @@ class Experiment(IExperiment):
         self.on_tune_start()
         self.study = optuna.create_study(direction="maximize")
         self.study.optimize(self._objective, n_trials=n_trials, n_jobs=1)
-        logfile = f"{LOGS_ROOT}/{UTCNOW}-ts-baseline-q{self._quantile}.optuna.csv"
         df = self.study.trials_dataframe()
-        df.to_csv(logfile, index=False)
+        df.to_csv(f"{self._logdir}/optuna.csv", index=False)
 
 
 if __name__ == "__main__":

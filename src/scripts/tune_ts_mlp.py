@@ -64,7 +64,7 @@ class MLP(nn.Module):
     def forward(self, x):
         bs, ln, fs = x.shape
         fc_output = self.fc(x.view(-1, fs))
-        fc_output = fc_output.view(bs, ln, -1).mean(1).squeeze(1)
+        fc_output = fc_output.view(bs, ln, -1).mean(1)  # .squeeze(1)
         return fc_output
 
 
@@ -154,7 +154,7 @@ class Experiment(IExperiment):
         with torch.set_grad_enabled(self.is_train_dataset):
             for self.dataset_batch_step, (data, target) in enumerate(tqdm(self.dataset)):
                 self.optimizer.zero_grad()
-                score = self.model(data)
+                score = self.model(data).view(-1)
                 loss = self.criterion(score, target)
                 score = torch.sigmoid(score)
                 pred = (score > 0.5).to(torch.int32)

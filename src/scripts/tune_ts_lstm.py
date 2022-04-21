@@ -47,7 +47,6 @@ class LSTM(nn.Module):
             lstm_output = lstm_output[:, -1, :]
 
         fc_output = self.fc(lstm_output)
-        fc_output = torch.squeeze(fc_output, 1)
         return fc_output
 
 
@@ -141,7 +140,7 @@ class Experiment(IExperiment):
         with torch.set_grad_enabled(self.is_train_dataset):
             for self.dataset_batch_step, (data, target) in enumerate(tqdm(self.dataset)):
                 self.optimizer.zero_grad()
-                score = self.model(data)
+                score = self.model(data).view(-1)
                 loss = self.criterion(score, target)
                 score = torch.sigmoid(score)
                 pred = (score > 0.5).to(torch.int32)
