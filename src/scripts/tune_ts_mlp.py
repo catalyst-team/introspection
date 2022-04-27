@@ -1,3 +1,4 @@
+# pylint: disable-all
 import argparse
 
 from animus import EarlyStoppingCallback, IExperiment
@@ -15,6 +16,8 @@ from tqdm.auto import tqdm
 
 from src.settings import LOGS_ROOT, UTCNOW
 from src.ts import load_ABIDE1, TSQuantileTransformer
+
+import wandb
 
 
 class ResidualBlock(nn.Module):
@@ -105,6 +108,9 @@ class Experiment(IExperiment):
         )
 
     def on_experiment_start(self, exp: "IExperiment"):
+        # init wandb logger
+        self.wandb_logger: wandb.run = wandb.init(project="tune_mlp", name=f"{UTCNOW}-mlp")
+
         super().on_experiment_start(exp)
         # setup experiment
         self.num_epochs = self._trial.suggest_int("exp.num_epochs", 1, self.max_epochs)
@@ -119,17 +125,22 @@ class Experiment(IExperiment):
             ),
         }
         # setup model
+        hidden_size = self._trial.suggest_int("mlp.hidden_size", 32, 256, log=True)
+        num_layers = self._trial.suggest_int("mlp.num_layers", 0, 4)
+        dropout = self._trial.suggest_uniform("mlp.dropout", 0.1, 0.9)
         self.model = MLP(
             input_size=53,  # PRIOR
             output_size=2,  # PRIOR
-            hidden_size=self._trial.suggest_int("mlp.hidden_size", 32, 256, log=True),
-            num_layers=self._trial.suggest_int("mlp.num_layers", 0, 4),
-            dropout=self._trial.suggest_uniform("mlp.dropout", 0.1, 0.9),
+            hidden_size=hidden_size,
+            num_layers=num_layers,
+            dropout=dropout,
         )
+
+        lr = self._trial.suggest_float("adam.lr", 1e-5, 1e-3, log=True)
         self.criterion = nn.CrossEntropyLoss()
         self.optimizer = optim.Adam(
             self.model.parameters(),
-            lr=self._trial.suggest_float("adam.lr", 1e-5, 1e-3, log=True),
+            lr=lr,
         )
         # setup callbacks
         self.callbacks = {
@@ -148,6 +159,17 @@ class Experiment(IExperiment):
                 minimize=False,
             ),
         }
+
+        self.wandb_logger.config.update(
+            {
+                "num_epochs": self.num_epochs,
+                "batch_size": self.batch_size,
+                "hidden_size": hidden_size,
+                "num_layers": num_layers,
+                "dropout": dropout,
+                "lr": lr,
+            }
+        )
 
     def run_dataset(self) -> None:
         all_scores, all_targets = [], []
@@ -173,9 +195,7 @@ class Experiment(IExperiment):
         y_test = np.hstack(all_targets)
         y_score = np.vstack(all_scores)
         y_pred = np.argmax(y_score, axis=-1).astype(np.int32)
-        report = get_classification_report(
-            y_true=y_test, y_pred=y_pred, y_score=y_score, beta=0.5
-        )
+        report = get_classification_report(y_true=y_test, y_pred=y_pred, y_score=y_score, beta=0.5)
         for stats_type in [0, 1, "macro", "weighted"]:
             stats = report.loc[stats_type]
             for key, value in stats.items():
@@ -186,14 +206,36 @@ class Experiment(IExperiment):
             "score": report["auc"].loc["weighted"],
             "loss": total_loss,
         }
+        if self.is_train_dataset:
+            self.wandb_logger.log(
+                {
+                    "train_score": self.dataset_metrics["score"],
+                    "train_loss": self.dataset_metrics["loss"],
+                }
+            )
+        else:
+            self.wandb_logger.log(
+                {
+                    "valid_score": self.dataset_metrics["score"],
+                    "valid_loss": self.dataset_metrics["loss"],
+                }
+            )
 
     def on_experiment_end(self, exp: "IExperiment") -> None:
         super().on_experiment_end(exp)
         self._score = self.callbacks["early-stop"].best_score
 
+        self.wandb_logger.log(
+            {
+                "best_score": self._score,
+            }
+        )
+        self.wandb_logger.finish()
+
     def _objective(self, trial) -> float:
         self._trial = trial
         self.run()
+
         return self._score
 
     def tune(self, n_trials: int):

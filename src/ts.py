@@ -64,6 +64,32 @@ def load_ABIDE1(
     return finalData, labels
 
 
+def load_FBIRN(
+    dataset_path: str = DATA_ROOT.joinpath("fbirn/FBIRN_AllData.h5"),
+    indices_path: str = DATA_ROOT.joinpath("fbirn/correct_indices_GSP.csv"),
+    labels_path: str = DATA_ROOT.joinpath("fbirn/labels_FBIRN_new.csv"),
+):
+    hf = h5py.File(dataset_path, "r")
+    data = hf.get("FBIRN_dataset")
+    data = np.array(data)
+    num_subjects = data.shape[0]
+    num_components = 100
+    data = data.reshape(num_subjects, num_components, -1)
+
+    # take only those brain networks that are not noise
+    df = pd.read_csv(indices_path, header=None)
+    c_indices = df.values
+    c_indices = c_indices.astype("int")
+    c_indices = c_indices.flatten()
+    c_indices = c_indices - 1
+    finalData = data[:, c_indices, :]
+
+    df = pd.read_csv(labels_path, header=None)
+    labels = df.values.flatten() - 1
+
+    return finalData, labels
+
+
 def _find_indices_of_each_class(all_labels):
     HC_index = (all_labels == 0).nonzero()
     SZ_index = (all_labels == 1).nonzero()
@@ -123,9 +149,7 @@ def load_ABIDE1_origin(
     finalData = np.zeros((subjects, samples_per_subject, sample_x, sample_y))
     for i in range(subjects):
         for j in range(samples_per_subject):
-            finalData[i, j, :, :] = data[
-                i, :, (j * window_shift) : (j * window_shift) + sample_y
-            ]
+            finalData[i, j, :, :] = data[i, :, (j * window_shift) : (j * window_shift) + sample_y]
     finalData = torch.from_numpy(finalData).float()
 
     # print(finalData.shape)
@@ -159,12 +183,8 @@ def load_ABIDE1_origin(
     total_HC_index_tr = HC_index[: len(HC_index) - (n_val_HC + n_test_HC)]
     total_SZ_index_tr = SZ_index[: len(SZ_index) - (n_val_SZ + n_test_SZ)]
 
-    HC_index_val = HC_index[
-        len(HC_index) - (n_val_HC + n_test_HC) : len(HC_index) - n_test_HC
-    ]
-    SZ_index_val = SZ_index[
-        len(HC_index) - (n_val_SZ + n_test_SZ) : len(HC_index) - n_test_SZ
-    ]
+    HC_index_val = HC_index[len(HC_index) - (n_val_HC + n_test_HC) : len(HC_index) - n_test_HC]
+    SZ_index_val = SZ_index[len(HC_index) - (n_val_SZ + n_test_SZ) : len(HC_index) - n_test_SZ]
 
     HC_index_test = HC_index[len(HC_index) - (n_test_HC) :]
     SZ_index_test = SZ_index[len(SZ_index) - (n_test_SZ) :]
