@@ -206,30 +206,23 @@ class Experiment(IExperiment):
             "score": report["auc"].loc["weighted"],
             "loss": total_loss,
         }
-        if self.is_train_dataset:
-            self.wandb_logger.log(
-                {
-                    "train_score": self.dataset_metrics["score"],
-                    "train_loss": self.dataset_metrics["loss"],
-                }
-            )
-        else:
-            self.wandb_logger.log(
-                {
-                    "valid_score": self.dataset_metrics["score"],
-                    "valid_loss": self.dataset_metrics["loss"],
-                }
-            )
+
+    def on_epoch_end(self, exp: "IExperiment") -> None:
+        super().on_epoch_end(self)
+        self.wandb_logger.log(
+            {
+                "train_score": self.epoch_metrics["train"]["score"],
+                "train_loss": self.epoch_metrics["train"]["loss"],
+                "valid_score": self.epoch_metrics["valid"]["score"],
+                "valid_loss": self.epoch_metrics["valid"]["loss"],
+            },
+        )
 
     def on_experiment_end(self, exp: "IExperiment") -> None:
         super().on_experiment_end(exp)
         self._score = self.callbacks["early-stop"].best_score
 
-        self.wandb_logger.log(
-            {
-                "best_score": self._score,
-            }
-        )
+        wandb.summary["valid_score"] = self._score
         self.wandb_logger.finish()
 
     def _objective(self, trial) -> float:

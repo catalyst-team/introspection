@@ -70,7 +70,7 @@ def load_FBIRN(
     labels_path: str = DATA_ROOT.joinpath("fbirn/labels_FBIRN_new.csv"),
 ):
     hf = h5py.File(dataset_path, "r")
-    data = hf.get("FBIRN_dataset")
+    data = hf.get("ABIDE1_dataset")
     data = np.array(data)
     num_subjects = data.shape[0]
     num_components = 100
@@ -88,6 +88,43 @@ def load_FBIRN(
     labels = df.values.flatten() - 1
 
     return finalData, labels
+
+
+def load_OASIS(
+    only_first_sessions: bool = True,
+    only_two_classes: bool = True,
+    dataset_path: str = DATA_ROOT.joinpath("oasis/OASIS3_AllData_allsessions.npz"),
+    indices_path: str = DATA_ROOT.joinpath("oasis/correct_indices_GSP.csv"),
+    labels_path: str = DATA_ROOT.joinpath("oasis/labels_OASIS_6_classes.csv"),
+    sessions_path: str = DATA_ROOT.joinpath("oasis/oasis_first_sessions_index.csv"),
+):
+    data = np.load(dataset_path)
+    # 2826 - sessions - data.shape[0]
+    # 100 - components - data.shape[1]
+    # 160 - time points - data.shape[2]
+
+    indices = pd.read_csv(indices_path, header=None)
+    idx = indices[0].values - 1
+
+    data = data[:, idx, :156]
+    # 53 - components - data.shape[1] - cut off noisy data
+    # 156 - time points - data.shape[2] - the rest of points are cut off (some of them are 0)
+
+    labels = pd.read_csv(labels_path, header=None)
+    labels = labels.values.flatten().astype("int") - 1
+
+    if only_first_sessions:
+        sessions = pd.read_csv(sessions_path, header=None)
+        first_session = sessions[0].values - 1
+
+        data = data[first_session, :, :]
+        # 912 - sessions - data.shape[0] - only first session
+        labels = labels[first_session]
+
+    if only_two_classes:
+        labels = np.asarray(list(map(lambda x: 0 if (x == 0) else 1, labels)))
+
+    return data, labels
 
 
 def _find_indices_of_each_class(all_labels):
