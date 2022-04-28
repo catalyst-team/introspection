@@ -1,3 +1,4 @@
+# pylint: disable-all
 import argparse
 
 from animus import EarlyStoppingCallback, IExperiment
@@ -16,6 +17,8 @@ from tqdm.auto import tqdm
 from src.settings import LOGS_ROOT, UTCNOW
 from src.ts import load_ABIDE1, TSQuantileTransformer
 
+import wandb
+
 
 class LSTM(nn.Module):
     def __init__(
@@ -28,9 +31,7 @@ class LSTM(nn.Module):
         super(LSTM, self).__init__()
         self.hidden_size = hidden_size
         self.bidirectional = bidirectional
-        self.lstm = nn.LSTM(
-            hidden_size=hidden_size, bidirectional=bidirectional, **kwargs
-        )
+        self.lstm = nn.LSTM(hidden_size=hidden_size, bidirectional=bidirectional, **kwargs)
         self.fc = nn.Sequential(
             nn.Dropout(p=fc_dropout),
             nn.Linear(2 * hidden_size if bidirectional else hidden_size, 1),
@@ -85,6 +86,9 @@ class Experiment(IExperiment):
         )
 
     def on_experiment_start(self, exp: "IExperiment"):
+        # init wandb logger
+        self.wandb_logger: wandb.run = wandb.init(project="tune_lstm", name=f"{UTCNOW}-lstm")
+
         super().on_experiment_start(exp)
         # setup experiment
         self.num_epochs = self._trial.suggest_int("exp.num_epochs", 1, self.max_epochs)
@@ -99,20 +103,23 @@ class Experiment(IExperiment):
             ),
         }
         # setup model
+        hidden_size = self._trial.suggest_int("lstm.hidden_size", 32, 256, log=True)
+        num_layers = self._trial.suggest_int("lstm.num_layers", 1, 4)
+        bidirectional = self._trial.suggest_categorical("lstm.bidirectional", [True, False])
+        fc_dropout = self._trial.suggest_uniform("lstm.fc_dropout", 0.1, 0.9)
         self.model = LSTM(
             input_size=53,  # PRIOR
-            hidden_size=self._trial.suggest_int("lstm.hidden_size", 32, 256, log=True),
-            num_layers=self._trial.suggest_int("lstm.num_layers", 1, 4),
+            hidden_size=hidden_size,
+            num_layers=num_layers,
             batch_first=True,
-            bidirectional=self._trial.suggest_categorical(
-                "lstm.bidirectional", [True, False]
-            ),
-            fc_dropout=self._trial.suggest_uniform("lstm.fc_dropout", 0.1, 0.9),
+            bidirectional=bidirectional,
+            fc_dropout=fc_dropout,
         )
+        lr = self._trial.suggest_float("adam.lr", 1e-5, 1e-3, log=True)
         self.criterion = nn.BCEWithLogitsLoss()
         self.optimizer = optim.Adam(
             self.model.parameters(),
-            lr=self._trial.suggest_float("adam.lr", 1e-5, 1e-3, log=True),
+            lr=lr,
         )
         # setup callbacks
         self.callbacks = {
@@ -131,6 +138,17 @@ class Experiment(IExperiment):
                 minimize=False,
             ),
         }
+        self.wandb_logger.config.update(
+            {
+                "num_epochs": self.num_epochs,
+                "batch_size": self.batch_size,
+                "hidden_size": hidden_size,
+                "num_layers": num_layers,
+                "bidirectional": bidirectional,
+                "fc_dropout": fc_dropout,
+                "lr": lr,
+            }
+        )
 
     def run_dataset(self) -> None:
         all_scores, all_targets = [], []
@@ -159,9 +177,7 @@ class Experiment(IExperiment):
         y_test = np.hstack(all_targets)
         y_score = np.hstack(all_scores)
         y_pred = (y_score > 0.5).astype(np.int32)
-        report = get_classification_report(
-            y_true=y_test, y_pred=y_pred, y_score=y_score, beta=0.5
-        )
+        report = get_classification_report(y_true=y_test, y_pred=y_pred, y_score=y_score, beta=0.5)
         for stats_type in [0, 1, "macro", "weighted"]:
             stats = report.loc[stats_type]
             for key, value in stats.items():
@@ -174,13 +190,30 @@ class Experiment(IExperiment):
             "loss": total_loss,
         }
 
+    def on_epoch_end(self, exp: "IExperiment") -> None:
+        super().on_epoch_end(self)
+        self.wandb_logger.log(
+            {
+                "train_score": self.epoch_metrics["train"]["score"],
+                "train_accuracy": self.epoch_metrics["train"]["accuracy"],
+                "train_loss": self.epoch_metrics["train"]["loss"],
+                "valid_score": self.epoch_metrics["valid"]["score"],
+                "valid_accuracy": self.epoch_metrics["valid"]["accuracy"],
+                "valid_loss": self.epoch_metrics["valid"]["loss"],
+            },
+        )
+
     def on_experiment_end(self, exp: "IExperiment") -> None:
         super().on_experiment_end(exp)
         self._score = self.callbacks["early-stop"].best_score
 
+        wandb.summary["valid_score"] = self._score
+        self.wandb_logger.finish()
+
     def _objective(self, trial) -> float:
         self._trial = trial
         self.run()
+
         return self._score
 
     def tune(self, n_trials: int):

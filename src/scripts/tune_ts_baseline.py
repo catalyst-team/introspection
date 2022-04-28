@@ -1,3 +1,4 @@
+# pylint: disable-all
 import argparse
 import os
 
@@ -14,6 +15,8 @@ from sklearn.model_selection import train_test_split
 
 from src.settings import LOGS_ROOT, UTCNOW
 from src.ts import load_ABIDE1, TSQuantileTransformer
+
+import wandb
 
 sns.set_theme(style="whitegrid", font_scale=2, rc={"figure.figsize": (18, 9)})
 
@@ -66,6 +69,9 @@ class Experiment(IExperiment):
 
     def on_experiment_start(self, exp: "IExperiment"):
         super().on_experiment_start(exp)
+
+        # init logger
+        self.wandb_logger: wandb.run = wandb.init(project="tune_ts")
         # setup model
         clf_type = self._trial.suggest_categorical(
             "classifier",
@@ -76,19 +82,30 @@ class Experiment(IExperiment):
                 "RandomForestClassifier",
             ],
         )
+
         if clf_type == "LogisticRegression":
             solver = self._trial.suggest_categorical(
                 "classifier.logistic.solver", ["liblinear", "lbfgs"]
             )
-            decay = self._trial.suggest_loguniform(
-                "classifier.logistic.C", low=1e-3, high=1e3
-            )
+            decay = self._trial.suggest_loguniform("classifier.logistic.C", low=1e-3, high=1e3)
             if solver == "liblinear":
                 penalty = self._trial.suggest_categorical(
                     "classifier.logistic.penalty", ["l1", "l2"]
                 )
             else:
                 penalty = "l2"
+
+            # configure logger
+            self.wandb_logger.name = f"{UTCNOW}-{clf_type}"
+            self.wandb_logger.config.update(
+                {
+                    "classifier": clf_type,
+                    "solver": solver,
+                    "decay": decay,
+                    "penalty": penalty,
+                    "max_iter": 1000,
+                }
+            )
 
             self.classifier = LogisticRegression(
                 solver=solver, C=decay, penalty=penalty, max_iter=1000
@@ -97,9 +114,21 @@ class Experiment(IExperiment):
             penalty = self._trial.suggest_categorical(
                 "classifier.sgd.penalty", ["l1", "l2", "elasticnet"]
             )
-            alpha = self._trial.suggest_loguniform(
-                "classifier.sgd.alpha", low=1e-4, high=1e-2
+            alpha = self._trial.suggest_loguniform("classifier.sgd.alpha", low=1e-4, high=1e-2)
+
+            # configure logger
+            self.wandb_logger.name = f"{UTCNOW}-{clf_type}"
+            self.wandb_logger.config.update(
+                {
+                    "classifier": clf_type,
+                    "loss": "modified_huber",
+                    "penalty": penalty,
+                    "alpha": alpha,
+                    "max_iter": 1000,
+                    "tol": 1e-3,
+                }
             )
+
             self.classifier = SGDClassifier(
                 loss="modified_huber",
                 penalty=penalty,
@@ -112,6 +141,16 @@ class Experiment(IExperiment):
             n_estimators = self._trial.suggest_int(
                 "classifier.adaboost.n_estimators", 2, 32, log=True
             )
+
+            # configure logger
+            self.wandb_logger.name = f"{UTCNOW}-{clf_type}"
+            self.wandb_logger.config.update(
+                {
+                    "classifier": clf_type,
+                    "n_estimators": n_estimators,
+                }
+            )
+
             self.classifier = AdaBoostClassifier(n_estimators=n_estimators)
         elif clf_type == "RandomForestClassifier":
             max_depth = self._trial.suggest_int(
@@ -120,6 +159,18 @@ class Experiment(IExperiment):
             n_estimators = self._trial.suggest_int(
                 "classifier.random_forest.n_estimators", 2, 32, log=True
             )
+
+            # configure logger
+            self.wandb_logger.name = f"{UTCNOW}-{clf_type}"
+            self.wandb_logger.config.update(
+                {
+                    "classifier": clf_type,
+                    "max_depth": max_depth,
+                    "n_estimators": n_estimators,
+                    "max_features": 1,
+                }
+            )
+
             self.classifier = RandomForestClassifier(
                 max_depth=max_depth, n_estimators=n_estimators, max_features=1
             )
@@ -135,24 +186,25 @@ class Experiment(IExperiment):
             num_times=self._num_times,
             logpath=f"{self._logdir}/{self._trial.number}.coefs.png",
         )
-        report = get_classification_report(
-            y_true=y_test, y_pred=y_pred, y_score=y_score, beta=0.5
-        )
+        report = get_classification_report(y_true=y_test, y_pred=y_pred, y_score=y_score, beta=0.5)
         for stats_type in [0, 1, "macro", "weighted"]:
             stats = report.loc[stats_type]
             for key, value in stats.items():
                 if "support" not in key:
                     self._trial.set_user_attr(f"{key}_{stats_type}", float(value))
         self.dataset_metrics = {"score": report["auc"].loc["weighted"]}
+        self.wandb_logger.log({"score": self.dataset_metrics["score"]})
 
     def on_experiment_end(self, exp: "IExperiment") -> None:
         super().on_experiment_end(exp)
         # we have only 1 epoch for baselines, so...
         self._score = self.experiment_metrics[1]["ABIDE1"]["score"]
+        self.wandb_logger.finish()
 
     def _objective(self, trial) -> float:
         self._trial = trial
         self.run()
+
         return self._score
 
     def tune(self, n_trials: int):

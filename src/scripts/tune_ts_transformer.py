@@ -1,3 +1,4 @@
+# pylint: disable-all
 import argparse
 
 from animus import EarlyStoppingCallback, IExperiment
@@ -15,6 +16,8 @@ from tqdm.auto import tqdm
 
 from src.settings import LOGS_ROOT, UTCNOW
 from src.ts import load_ABIDE1, TSQuantileTransformer
+
+import wandb
 
 
 class Transformer(nn.Module):
@@ -82,6 +85,11 @@ class Experiment(IExperiment):
         )
 
     def on_experiment_start(self, exp: "IExperiment"):
+        # init wandb logger
+        self.wandb_logger: wandb.run = wandb.init(
+            project="tune_transformer", name=f"{UTCNOW}-transformer"
+        )
+
         super().on_experiment_start(exp)
         # setup experiment
         self.num_epochs = self._trial.suggest_int("exp.num_epochs", 1, self.max_epochs)
@@ -96,21 +104,23 @@ class Experiment(IExperiment):
             ),
         }
         # setup model
-        hidden_size = self._trial.suggest_int(
-            "transformer.hidden_size", 4, 128, log=True
-        )
+        hidden_size = self._trial.suggest_int("transformer.hidden_size", 4, 128, log=True)
         num_heads = self._trial.suggest_int("transformer.num_heads", 1, 4)
+        num_layers = self._trial.suggest_int("transformer.num_layers", 1, 4)
+        fc_dropout = self._trial.suggest_uniform("transformer.fc_dropout", 0.1, 0.9)
         self.model = Transformer(
             input_size=53,  # PRIOR
             hidden_size=hidden_size * num_heads,
-            num_layers=self._trial.suggest_int("transformer.num_layers", 1, 4),
+            num_layers=num_layers,
             num_heads=num_heads,
-            fc_dropout=self._trial.suggest_uniform("transformer.fc_dropout", 0.1, 0.9),
+            fc_dropout=fc_dropout,
         )
         self.criterion = nn.BCEWithLogitsLoss()
+
+        lr = self._trial.suggest_float("adam.lr", 1e-5, 1e-3, log=True)
         self.optimizer = optim.Adam(
             self.model.parameters(),
-            lr=self._trial.suggest_float("adam.lr", 1e-5, 1e-3, log=True),
+            lr=lr,
         )
         # setup callbacks
         self.callbacks = {
@@ -129,6 +139,18 @@ class Experiment(IExperiment):
                 minimize=False,
             ),
         }
+
+        self.wandb_logger.config.update(
+            {
+                "num_epochs": self.num_epochs,
+                "batch_size": self.batch_size,
+                "hidden_size": hidden_size,
+                "num_heads": num_heads,
+                "num_layers": num_layers,
+                "fc_dropout": fc_dropout,
+                "lr": lr,
+            }
+        )
 
     def run_dataset(self) -> None:
         all_scores, all_targets = [], []
@@ -157,9 +179,7 @@ class Experiment(IExperiment):
         y_test = np.hstack(all_targets)
         y_score = np.hstack(all_scores)
         y_pred = (y_score > 0.5).astype(np.int32)
-        report = get_classification_report(
-            y_true=y_test, y_pred=y_pred, y_score=y_score, beta=0.5
-        )
+        report = get_classification_report(y_true=y_test, y_pred=y_pred, y_score=y_score, beta=0.5)
         for stats_type in [0, 1, "macro", "weighted"]:
             stats = report.loc[stats_type]
             for key, value in stats.items():
@@ -172,13 +192,30 @@ class Experiment(IExperiment):
             "loss": total_loss,
         }
 
+    def on_epoch_end(self, exp: "IExperiment") -> None:
+        super().on_epoch_end(self)
+        self.wandb_logger.log(
+            {
+                "train_score": self.epoch_metrics["train"]["score"],
+                "train_accuracy": self.epoch_metrics["train"]["accuracy"],
+                "train_loss": self.epoch_metrics["train"]["loss"],
+                "valid_score": self.epoch_metrics["valid"]["score"],
+                "valid_accuracy": self.epoch_metrics["valid"]["accuracy"],
+                "valid_loss": self.epoch_metrics["valid"]["loss"],
+            },
+        )
+
     def on_experiment_end(self, exp: "IExperiment") -> None:
         super().on_experiment_end(exp)
         self._score = self.callbacks["early-stop"].best_score
 
+        wandb.summary["valid_score"] = self._score
+        self.wandb_logger.finish()
+
     def _objective(self, trial) -> float:
         self._trial = trial
         self.run()
+
         return self._score
 
     def tune(self, n_trials: int):
