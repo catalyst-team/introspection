@@ -30,6 +30,7 @@ class MLP(nn.Module):
     def __init__(
         self,
         input_size: int,
+        input_len: int,
         output_size: int,
         dropout: float = 0.5,
         hidden_size: int = 128,
@@ -67,6 +68,49 @@ class MLP(nn.Module):
         bs, ln, fs = x.shape
         fc_output = self.fc(x.view(-1, fs))
         fc_output = fc_output.view(bs, ln, -1).mean(1)  # .squeeze(1)
+        return fc_output
+
+
+class MLPv2(nn.Module):
+    def __init__(
+        self,
+        input_size: int,
+        input_len: int,
+        output_size: int,
+        dropout: float = 0.5,
+        hidden_size: int = 128,
+        num_layers: int = 0,
+    ):
+        super().__init__()
+        layers = [
+            nn.Flatten(),
+            nn.LayerNorm(input_len * input_size),
+            nn.Dropout(p=dropout),
+            nn.Linear(input_len * input_size, hidden_size),
+            nn.ReLU(),
+        ]
+        for _ in range(num_layers):
+            layers.append(
+                ResidualBlock(
+                    nn.Sequential(
+                        nn.LayerNorm(hidden_size),
+                        nn.Dropout(p=dropout),
+                        nn.Linear(hidden_size, hidden_size),
+                        nn.ReLU(),
+                    )
+                )
+            )
+        layers.append(
+            nn.Sequential(
+                nn.LayerNorm(hidden_size),
+                nn.Dropout(p=dropout),
+                nn.Linear(hidden_size, output_size),
+            )
+        )
+        self.fc = nn.Sequential(*layers)
+
+    def forward(self, x):
+        fc_output = self.fc(x)
         return fc_output
 
 
@@ -121,10 +165,11 @@ class Experiment(IExperiment):
         # setup model
         self.model = MLP(
             input_size=53,  # PRIOR
+            input_len=140,  # PRIOR
             output_size=2,  # PRIOR
-            hidden_size=self._trial.suggest_int("mlp.hidden_size", 32, 256, log=True),
+            hidden_size=self._trial.suggest_int("mlp.hidden_size", 32, 1024, log=True),
             num_layers=self._trial.suggest_int("mlp.num_layers", 0, 4),
-            dropout=self._trial.suggest_uniform("mlp.dropout", 0.1, 0.9),
+            dropout=self._trial.suggest_uniform("mlp.dropout", 0.2, 0.8),
         )
         self.criterion = nn.CrossEntropyLoss()
         self.optimizer = optim.Adam(
