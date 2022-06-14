@@ -2,8 +2,8 @@ import argparse
 
 from animus import EarlyStoppingCallback, IExperiment
 from animus.torch.callbacks import TorchCheckpointerCallback
+from apto.utils.misc import boolean_flag
 from apto.utils.report import get_classification_report
-from catalyst import utils
 import numpy as np
 import optuna
 from sklearn.model_selection import train_test_split
@@ -14,66 +14,15 @@ from torch.utils.data import DataLoader, TensorDataset
 from tqdm.auto import tqdm
 
 from src.settings import LOGS_ROOT, UTCNOW
-from src.ts import load_ABIDE1, TSQuantileTransformer
-
-
-class ResidualBlock(nn.Module):
-    def __init__(self, block):
-        super().__init__()
-        self.block = block
-
-    def forward(self, x: torch.Tensor):
-        return self.block(x) + x
-
-
-class MLP(nn.Module):
-    def __init__(
-        self,
-        input_size: int,
-        output_size: int,
-        dropout: float = 0.5,
-        hidden_size: int = 128,
-        num_layers: int = 0,
-    ):
-        super(MLP, self).__init__()
-        layers = [
-            nn.LayerNorm(input_size),
-            nn.Dropout(p=dropout),
-            nn.Linear(input_size, hidden_size),
-            nn.ReLU(),
-        ]
-        for _ in range(num_layers):
-            layers.append(
-                ResidualBlock(
-                    nn.Sequential(
-                        nn.LayerNorm(hidden_size),
-                        nn.Dropout(p=dropout),
-                        nn.Linear(hidden_size, hidden_size),
-                        nn.ReLU(),
-                    )
-                )
-            )
-        layers.append(
-            nn.Sequential(
-                nn.LayerNorm(hidden_size),
-                nn.Dropout(p=dropout),
-                nn.Linear(hidden_size, output_size),
-            )
-        )
-
-        self.fc = nn.Sequential(*layers)
-
-    def forward(self, x):
-        bs, ln, fs = x.shape
-        fc_output = self.fc(x.view(-1, fs))
-        fc_output = fc_output.view(bs, ln, -1).mean(1)  # .squeeze(1)
-        return fc_output
+from src.ts_data import load_ABIDE1, TSQuantileTransformer
+from src.ts_model import LSTM, MLP, Transformer
 
 
 class Experiment(IExperiment):
-    def __init__(self, quantile: bool, max_epochs: int, logdir: str) -> None:
+    def __init__(self, model: str, quantile: bool, max_epochs: int, logdir: str) -> None:
         super().__init__()
         assert not quantile, "Not implemented yet"
+        self._model = model
         self._quantile: bool = quantile
         self._trial: optuna.Trial = None
         self.max_epochs = max_epochs
@@ -119,13 +68,47 @@ class Experiment(IExperiment):
             ),
         }
         # setup model
-        self.model = MLP(
-            input_size=53,  # PRIOR
-            output_size=2,  # PRIOR
-            hidden_size=self._trial.suggest_int("mlp.hidden_size", 32, 256, log=True),
-            num_layers=self._trial.suggest_int("mlp.num_layers", 0, 4),
-            dropout=self._trial.suggest_uniform("mlp.dropout", 0.1, 0.9),
-        )
+        if self._model == "mlp":
+            self.model = MLP(
+                input_size=53,  # PRIOR
+                output_size=2,  # PRIOR
+                hidden_size=self._trial.suggest_int(
+                    "mlp.hidden_size", 32, 256, log=True
+                ),
+                num_layers=self._trial.suggest_int("mlp.num_layers", 0, 4),
+                dropout=self._trial.suggest_uniform("mlp.dropout", 0.1, 0.9),
+            )
+        elif self._model == "lstm":
+            self.model = LSTM(
+                input_size=53,  # PRIOR
+                output_size=2,  # PRIOR
+                hidden_size=self._trial.suggest_int(
+                    "lstm.hidden_size", 32, 256, log=True
+                ),
+                num_layers=self._trial.suggest_int("lstm.num_layers", 1, 4),
+                batch_first=True,
+                bidirectional=self._trial.suggest_categorical(
+                    "lstm.bidirectional", [True, False]
+                ),
+                fc_dropout=self._trial.suggest_uniform("lstm.fc_dropout", 0.1, 0.9),
+            )
+        elif self._model == "transformer":
+            hidden_size = self._trial.suggest_int(
+                "transformer.hidden_size", 4, 128, log=True
+            )
+            num_heads = self._trial.suggest_int("transformer.num_heads", 1, 4)
+            self.model = Transformer(
+                input_size=53,  # PRIOR
+                output_size=2,  # PRIOR
+                hidden_size=hidden_size * num_heads,
+                num_layers=self._trial.suggest_int("transformer.num_layers", 1, 4),
+                num_heads=num_heads,
+                fc_dropout=self._trial.suggest_uniform(
+                    "transformer.fc_dropout", 0.1, 0.9
+                ),
+            )
+        else:
+            raise NotImplementedError()
         self.criterion = nn.CrossEntropyLoss()
         self.optimizer = optim.Adam(
             self.model.parameters(),
@@ -211,12 +194,17 @@ if __name__ == "__main__":
     warnings.filterwarnings("ignore")
 
     parser = argparse.ArgumentParser()
-    utils.boolean_flag(parser, "quantile", default=False)
+    parser.add_argument(
+        "--model", type=str, choices=["mlp", "lstm", "transformer"], required=True
+    )
+    boolean_flag(parser, "quantile", default=False)
     parser.add_argument("--max-epochs", type=int, default=1)
     parser.add_argument("--num-trials", type=int, default=1)
+
     args = parser.parse_args()
     Experiment(
+        model=args.model,
         quantile=args.quantile,
         max_epochs=args.max_epochs,
-        logdir=f"{LOGS_ROOT}/{UTCNOW}-ts-mlp-q{args.quantile}/",
+        logdir=f"{LOGS_ROOT}/{UTCNOW}-ts-{args.model}-q{args.quantile}/",
     ).tune(n_trials=args.num_trials)

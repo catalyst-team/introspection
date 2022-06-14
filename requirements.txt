@@ -14,4 +14,4 @@ animus
 optuna
 scikit-learn
 h5py
-apto==0.0.1
+apto==0.0.2
