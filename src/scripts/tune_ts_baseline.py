@@ -13,7 +13,7 @@ from sklearn.linear_model import LogisticRegression, SGDClassifier
 from sklearn.model_selection import train_test_split
 
 from src.settings import LOGS_ROOT, UTCNOW
-from ts_data import load_ABIDE1, TSQuantileTransformer
+from src.ts_data import load_ABIDE1, TSQuantileTransformer
 
 sns.set_theme(style="whitegrid", font_scale=2, rc={"figure.figsize": (18, 9)})
 
