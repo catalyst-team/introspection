@@ -15,7 +15,7 @@ from torch.utils.data import DataLoader, Dataset
 from x_transformers import Encoder, TransformerWrapper
 
 from src.settings import LOGS_ROOT
-from src.ts import load_ABIDE1, TSQuantileTransformer
+from src.ts_data import load_ABIDE1, TSQuantileTransformer
 
 N_CHANNEL = 2  # up to 53 (prior)
 assert N_CHANNEL >= 1 and N_CHANNEL <= 53
